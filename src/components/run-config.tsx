@@ -34,7 +34,7 @@ export function RunConfig({
   onStart,
 }: RunConfigProps) {
   const canStart = apiAvailable && isValidPreferences(preferences) && !isRunning;
-  const estimatedMaximumCost = preferences.maxCandidates * 0.05 + 0.025;
+  const estimatedMaximumCost = preferences.maxCandidates * 0.05 + 0.05;
 
   function setNumber<K extends keyof RunPreferences>(key: K, value: number) {
     onChange({ ...preferences, [key]: value });

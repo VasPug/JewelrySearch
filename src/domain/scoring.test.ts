@@ -125,6 +125,42 @@ describe("scoreCandidate hard gates", () => {
     expect(result.reasons).toContain("No accepted jewelry material is verified");
   });
 
+  it.each([
+    "sterling silver",
+    "925 silver",
+    ".925 sterling silver",
+    "10kt gold",
+    "10 karat gold",
+    "14kt gold",
+    "14 karat gold",
+    "gold filled",
+    "gold plated",
+    "vermeil",
+  ])("recognizes the material synonym %s", (metal) => {
+    const result = scoreCandidate(
+      candidate({
+        acceptedMetals: [evidence(metal)],
+        catalogSamples: Array.from({ length: 10 }, () => listing({ metal })),
+      }),
+      DEFAULT_PREFERENCES,
+    );
+
+    expect(result.reasons).not.toContain("No accepted jewelry material is verified");
+    expect(result.breakdown.productFit).toBeGreaterThan(0);
+  });
+
+  it("recognizes Canadian jewellery spelling and singular product categories", () => {
+    const result = scoreCandidate(
+      candidate({
+        mainProductSegment: evidence("Wholesale silver jewellery and chain"),
+        catalogSamples: Array.from({ length: 10 }, () => listing({ category: "chain" })),
+      }),
+      DEFAULT_PREFERENCES,
+    );
+
+    expect(result.reasons).not.toContain("Main product segment is not a qualifying jewelry category");
+  });
+
   it("rejects a candidate without public contact details", () => {
     const result = scoreCandidate(
       candidate({ personalEmail: null, genericEmail: null, phoneNumber: null }),

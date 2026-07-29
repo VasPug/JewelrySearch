@@ -1,11 +1,16 @@
 import type { DiscoveryCandidate, RunPreferences } from "@/domain/types";
 
 export const DISCOVERY_QUERY_FAMILIES = [
-  "Canadian jewelry manufacturers wholesale sterling silver gold",
-  "Canadian jewelry wholesalers ready to ship inventory",
-  "Canadian independent jewelry retailers sterling silver gold",
-  "Canadian jewelry trade show exhibitors wholesale",
-  "Canadian jewelry Etsy Instagram marketplace sellers",
+  "Canadian jewelry manufacturer wholesale sterling silver 925 10k 14k chains -blog -guide",
+  "Canadian jewelry wholesaler ready to ship sterling silver gold inventory -blog -directory",
+  "Canadian independent jewelry retailer sterling silver 925 10k 14k -engagement",
+  "Canadian jewelry trade show exhibitor wholesaler manufacturer",
+  "site:etsy.com/shop Canada sterling silver gold jewelry ready to ship",
+  "site:instagram.com Canadian jewelry wholesaler sterling silver gold",
+  "site:facebook.com Canadian jewelry wholesaler sterling silver gold",
+  "Canadian jewelry supplier Cuban Figaro paperclip chains wholesale",
+  "Canadian gold filled gold plated jewelry wholesaler",
+  "Canadian 925 silver jewelry distributor",
 ] as const;
 
 export function discoveryQueries(location = "Canada"): string[] {
@@ -21,9 +26,10 @@ export function candidateResearchPrompt(
     candidate.websiteUrl ? `Its discovered website is ${candidate.websiteUrl}.` : "No official website was found during discovery.",
     "Return only verified facts. Every non-null location, catalog, price, stock, contact, and social follower-count fact must include its direct source URL and confidence.",
     "Use null for any unknown, unavailable, or unverified field; never infer values. Include at least one evidence URL in sourceUrls.",
-    "Verify a physical Canadian address where possible, identify seller type, and sample up to 20 listings.",
+    "First inspect the official Contact, About, Store Locator, Shipping, and Terms pages for a physical Canadian headquarters, store, office, warehouse, or manufacturing address. If the official site has no address, require two independent credible sources that agree.",
+    "Reject shipping-to-Canada, CAD pricing, or a .ca domain as location proof by themselves. Identify seller type and sample up to 20 listings.",
     `Prioritize these categories: ${preferences.acceptedCategories.join(", ") || "jewelry"}.`,
-    `Prioritize these metals: ${preferences.acceptedMetals.join(", ") || "unknown"}.`,
+    `Prioritize these metals and equivalent spellings: ${preferences.acceptedMetals.join(", ") || "unknown"}, sterling silver, .925 silver, 925 silver, 10kt, 10 karat, 14kt, 14 karat, gold filled, gold plated, and vermeil.`,
     "Record ready-to-ship evidence, published contacts, social profiles and follower counts, and trade-show participation only when supported by citations.",
   ].join(" ");
 }

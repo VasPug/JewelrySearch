@@ -38,7 +38,12 @@ const prohibitedTerms = [
 const moissaniteTerms = ["moissanite", "cubic zirconia"];
 
 function normalize(value: string): string {
-  return value.trim().toLowerCase();
+  return value
+    .trim()
+    .toLowerCase()
+    .replaceAll("jewellery", "jewelry")
+    .replace(/[‐‑‒–—-]/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 function includesTerm(value: string, terms: string[]): boolean {
@@ -65,12 +70,35 @@ function roundToTwo(value: number): number {
 
 function isAcceptedCategory(value: string, preferences: RunPreferences): boolean {
   const normalized = normalize(value);
-  return preferences.acceptedCategories.some((category) => normalized.includes(normalize(category)));
+  return preferences.acceptedCategories.some((category) => {
+    const accepted = normalize(category);
+    const singular = accepted.endsWith("s") ? accepted.slice(0, -1) : accepted;
+    return normalized.includes(accepted) || normalized.includes(singular);
+  });
 }
 
 function isAcceptedMetal(value: string, preferences: RunPreferences): boolean {
   const normalized = normalize(value);
-  return preferences.acceptedMetals.some((metal) => normalized.includes(normalize(metal)));
+  const directMatch = preferences.acceptedMetals.some((metal) => {
+    const accepted = normalize(metal);
+    return normalized.includes(accepted);
+  });
+  if (directMatch) return true;
+
+  const synonymFamilies = [
+    ["0.925 sterling silver", "925 sterling silver", ".925 sterling silver", "925 silver", ".925 silver", "sterling silver"],
+    ["10k gold", "10kt gold", "10 karat gold", "10 carat gold"],
+    ["14k gold", "14kt gold", "14 karat gold", "14 carat gold"],
+    ["gold filled", "goldfill"],
+    ["gold plated", "gold plate", "vermeil"],
+  ];
+
+  return synonymFamilies.some((family) => {
+    const familyEnabled = preferences.acceptedMetals.some((metal) =>
+      family.some((term) => normalize(metal).includes(normalize(term)) || normalize(term).includes(normalize(metal))),
+    );
+    return familyEnabled && family.some((term) => normalized.includes(normalize(term)));
+  });
 }
 
 function inventoryIsMeaningful(

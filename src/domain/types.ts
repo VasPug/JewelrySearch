@@ -183,5 +183,6 @@ export type RunRecord = {
   researchLimitReached: boolean;
   leads: QualifiedLead[];
   rejectionReasons: Record<string, RejectionReason[]>;
+  rejectedEvidence: Record<string, CandidateEvidence>;
   error: string | null;
 };

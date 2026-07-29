@@ -4,6 +4,7 @@ import type { CandidateEvidence, DiscoveryCandidate, QualifiedLead, RunPreferenc
 import { dashboardDb } from "@/storage/db";
 
 import { discoveryQueries } from "./prompts";
+import { prefilterCandidate } from "./prefilter";
 
 export type ResearchGateway = {
   discoverCandidates: (query: string, count: number) => Promise<DiscoveryCandidate[]>;
@@ -51,7 +52,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
   const storage = dependencies.storage ?? browserStorage;
   const run: RunRecord = {
     id: dependencies.id?.() ?? crypto.randomUUID(), startedAt: new Date().toISOString(), completedAt: null, stage: "discovering", preferences,
-    discoveredCount: 0, researchedCount: 0, qualifiedCount: 0, rejectedCount: 0, deduplicatedCount: 0, researchLimitReached: false, leads: [], rejectionReasons: {}, error: null,
+    discoveredCount: 0, researchedCount: 0, qualifiedCount: 0, rejectedCount: 0, deduplicatedCount: 0, researchLimitReached: false, leads: [], rejectionReasons: {}, rejectedEvidence: {}, error: null,
   };
   let persistence = Promise.resolve();
   const persist = () => {
@@ -78,6 +79,12 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       queryIndex += 1;
       const fresh = discovered.filter((item) => {
         if (isDuplicate(item, known)) { run.deduplicatedCount += 1; return false; }
+        const prefilterReason = prefilterCandidate(item);
+        if (prefilterReason) {
+          run.rejectedCount += 1;
+          run.rejectionReasons[item.id] = [prefilterReason];
+          return false;
+        }
         known.push(item);
         return true;
       });
@@ -103,6 +110,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
             await storage.saveAcceptedLeads([lead]);
           } else {
             run.rejectedCount += 1;
+            run.rejectedEvidence[item.id] = evidence;
             run.rejectionReasons[item.id] = result.reasons.length
               ? result.reasons
               : run.qualifiedCount >= preferences.targetLeads

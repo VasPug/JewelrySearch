@@ -94,4 +94,30 @@ describe("runResearch", () => {
     expect(storage.saveRun).toHaveBeenCalled();
     expect(storage.saveQueuedCandidates).toHaveBeenCalledWith("run-4", expect.any(Array));
   });
+
+  it("filters articles before paid research and preserves rejected seller evidence", async () => {
+    const article = candidate("article");
+    article.companyName = "Top 10 Canadian Jewelry Suppliers";
+    article.websiteUrl = "https://example.ca/blog/suppliers";
+    const rejected = candidate("rejected");
+    const research = vi.fn(async (item: DiscoveryCandidate) => {
+      const evidence = researched(item);
+      if (item.id === "rejected") evidence.location.verified = false;
+      return evidence;
+    });
+
+    const run = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 2, maxCandidates: 1 },
+      {},
+      {
+        gateway: gateway(vi.fn(async () => [article, rejected]), research),
+        storage: memoryStorage(),
+        id: () => "run-5",
+      },
+    );
+
+    expect(research).toHaveBeenCalledTimes(1);
+    expect(run.rejectionReasons[article.id]).toContain("Search result is an article rather than a seller");
+    expect(run.rejectedEvidence[rejected.id]).toMatchObject({ id: rejected.id });
+  });
 });

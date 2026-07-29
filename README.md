@@ -62,8 +62,8 @@ Canadian location is a permanent binary gate. A candidate without verified Canad
 
 The budget-safe default run targets 5 accepted sellers, researches no more than
 20 candidates, and uses one concurrent research call. At current You.com
-standard Research pricing, that is approximately $1.03 USD at the maximum
-candidate budget, including up to five discovery searches. The dashboard shows
+standard Research pricing, that is approximately $1.05 USD at the maximum
+candidate budget, including up to ten discovery searches. The dashboard shows
 an estimated maximum before every run.
 
 The most recent valid configuration, resumable run records, accepted public lead data, and queued candidates are stored locally in IndexedDB. No API key or private customer data is stored.

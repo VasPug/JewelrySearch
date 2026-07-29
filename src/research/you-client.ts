@@ -44,6 +44,7 @@ export class YouClient {
     query: string,
     count: number,
     options: { livecrawl?: boolean } = {},
+    signal?: AbortSignal,
   ): Promise<DiscoveryCandidate[]> {
     const url = new URL(SEARCH_URL);
     url.searchParams.set("query", query);
@@ -51,7 +52,7 @@ export class YouClient {
     url.searchParams.set("country", "CA");
     if (options.livecrawl) url.searchParams.set("livecrawl", "web");
 
-    const payload = await this.request(url.toString());
+    const payload = await this.request(url.toString(), {}, signal);
     const webResults = readWebResults(payload);
     return webResults.flatMap((result) => {
       if (!isUrl(result.url) || typeof result.title !== "string" || !result.title.trim()) return [];
@@ -68,6 +69,7 @@ export class YouClient {
     candidate: DiscoveryCandidate,
     preferences: RunPreferences,
     instructions = "",
+    signal?: AbortSignal,
   ): Promise<CandidateEvidence> {
     const payload = await this.request(RESEARCH_URL, {
       method: "POST",
@@ -78,7 +80,7 @@ export class YouClient {
         source_control: { country: "CA" },
         output_schema: RESEARCH_OUTPUT_SCHEMA,
       }),
-    });
+    }, signal);
     const content = isRecord(payload) && isRecord(payload.output) ? payload.output.content : undefined;
     const parsed = researchOutputSchema.safeParse(content);
     if (!parsed.success) {
@@ -87,11 +89,14 @@ export class YouClient {
     return toCandidateEvidence(parsed.data, candidate.id, candidate.discoverySource);
   }
 
-  private async request(url: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(url: string, init: RequestInit = {}, externalSignal?: AbortSignal): Promise<unknown> {
     if (!this.apiKey) throw new Error("YDC_API_KEY is required for You.com requests");
+    if (externalSignal?.aborted) throw new DOMException("Run cancelled", "AbortError");
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       const controller = new AbortController();
+      const cancel = () => controller.abort(externalSignal?.reason);
+      externalSignal?.addEventListener("abort", cancel, { once: true });
       const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
         const response = await this.fetchFn(url, {
@@ -107,11 +112,13 @@ export class YouClient {
           throw new YouApiError(message, response.status);
         }
       } catch (error) {
+        if (externalSignal?.aborted) throw new DOMException("Run cancelled", "AbortError");
         if (controller.signal.aborted) throw new Error("You.com request timed out");
         if (error instanceof YouApiError || attempt === MAX_ATTEMPTS) throw error;
         throw error;
       } finally {
         clearTimeout(timeout);
+        externalSignal?.removeEventListener("abort", cancel);
       }
       await this.sleep(100 * attempt);
     }

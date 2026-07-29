@@ -6,7 +6,7 @@ import { YouClient, YouApiError } from "@/research/you-client";
 const weightsSchema = z.object({ productFit: z.number(), affordability: z.number(), inventory: z.number(), sellerPriority: z.number(), contactability: z.number(), presence: z.number() }).strict();
 const preferencesSchema = z.object({
   threshold: z.number(), targetLeads: z.number().int().positive(), maxCandidates: z.number().int().positive(), maxConcurrentResearch: z.number().int().positive(), weights: weightsSchema,
-  acceptedMetals: z.array(z.string()), acceptedCategories: z.array(z.string()), unwantedMeaningfulPercent: z.number(), unwantedMeaningfulCount: z.number().int().positive(), unwantedLowMax: z.number(), unwantedMediumMax: z.number(), unwantedGeneralRejectAbove: z.number(), unwantedMoissaniteRejectAbove: z.number(),
+  acceptedMetals: z.array(z.string()), acceptedCategories: z.array(z.string()), avoidTerms: z.array(z.string()).default([]), unwantedMeaningfulPercent: z.number(), unwantedMeaningfulCount: z.number().int().positive(), unwantedLowMax: z.number(), unwantedMediumMax: z.number(), unwantedGeneralRejectAbove: z.number(), unwantedMoissaniteRejectAbove: z.number(),
 }).strict();
 const requestSchema = z.object({
   candidate: z.object({ id: z.string().min(1), companyName: z.string().min(1), websiteUrl: z.string().url().nullable(), discoverySource: z.string().min(1) }).strict(),
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       parsed.data.candidate,
       parsed.data.preferences,
       parsed.data.instructions,
+      request.signal,
     );
     return NextResponse.json({ candidate });
   } catch (error) {

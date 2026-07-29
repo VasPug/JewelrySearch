@@ -71,6 +71,7 @@ Run the paid trial with:
   async saveAcceptedLeads(leads: QualifiedLead[]) {
     acceptedLeads.push(...leads);
   },
+  async saveCandidateMemory() {},
   };
 
   console.log(

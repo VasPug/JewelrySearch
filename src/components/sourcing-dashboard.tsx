@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ImportedLead } from "@/domain/imported-leads";
 import type { DiscoveryCandidate, RunPreferences, RunRecord } from "@/domain/types";
@@ -29,6 +29,7 @@ export function SourcingDashboard() {
   const [isRunning, setIsRunning] = useState(false);
   const [importedLeads, setImportedLeads] = useState<ImportedLead[]>([]);
   const [instructions, setInstructions] = useState("");
+  const runController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +56,7 @@ export function SourcingDashboard() {
       setCurrentRun(savedRuns.find((run) => !run.completedAt) ?? savedRuns[0] ?? null);
       setImportedLeads(savedImportedLeads);
       setInstructions(savedSettings?.instructions ?? "");
+      void rememberRejectedCandidates(savedRuns).catch(() => undefined);
     }
 
     void hydrateDashboard();
@@ -84,25 +86,48 @@ export function SourcingDashboard() {
     if (isRunning || !apiConfigured || !isValidPreferences(preferences)) return;
 
     setIsRunning(true);
+    const controller = new AbortController();
+    runController.current = controller;
     try {
       const completed = await runResearch(
         clonePreferences(preferences),
         { onProgress: setCurrentRun },
-        { instructions },
+        {
+          instructions: feedbackAwareInstructions(instructions, importedLeads),
+          signal: controller.signal,
+        },
       );
       await finishRun(completed);
     } finally {
+      if (runController.current === controller) runController.current = null;
       setIsRunning(false);
     }
-  }, [apiConfigured, instructions, isRunning, preferences]);
+  }, [apiConfigured, importedLeads, instructions, isRunning, preferences]);
 
   const importLeads = useCallback(async (leads: ImportedLead[]) => {
-    await dashboardDb.importedLeads.bulkPut(leads);
+    await Promise.all([
+      dashboardDb.importedLeads.bulkPut(leads),
+      dashboardDb.candidateMemory.bulkPut(leads.map((lead) => ({
+        id: lead.id,
+        companyName: lead.companyName,
+        websiteUrl: lead.websiteUrl,
+        outcome: lead.feedbackStatus || "already_known",
+        reason: lead.feedbackNotes,
+        runId: null,
+        updatedAt: lead.importedAt,
+      }))),
+    ]);
     setImportedLeads(await dashboardDb.importedLeads.toArray());
   }, []);
 
   const clearImportedLeads = useCallback(() => {
-    void dashboardDb.importedLeads.clear().then(() => setImportedLeads([]));
+    void dashboardDb.importedLeads.toArray().then(async (leads) => {
+      await Promise.all([
+        dashboardDb.importedLeads.clear(),
+        dashboardDb.candidateMemory.bulkDelete(leads.map((lead) => lead.id)),
+      ]);
+      setImportedLeads([]);
+    });
   }, []);
 
   const updateInstructions = useCallback((value: string) => {
@@ -117,26 +142,39 @@ export function SourcingDashboard() {
 
   const reviewLeads = useCallback(async () => {
     if (isRunning || !apiConfigured || !isValidPreferences(preferences) || importedLeads.length === 0) return;
-    const candidates: DiscoveryCandidate[] = importedLeads.map((lead) => ({
-      id: lead.id,
-      companyName: lead.companyName,
-      websiteUrl: lead.websiteUrl,
-      discoverySource: "csv_upload",
-    }));
+    const candidates: DiscoveryCandidate[] = importedLeads
+      .filter((lead) => !lead.feedbackStatus)
+      .map((lead) => ({
+        id: lead.id,
+        companyName: lead.companyName,
+        websiteUrl: lead.websiteUrl,
+        discoverySource: "csv_upload",
+      }));
+    if (candidates.length === 0) return;
 
     setIsRunning(true);
+    const controller = new AbortController();
+    runController.current = controller;
     try {
       const completed = await reviewImportedLeads(
         clonePreferences(preferences),
         candidates,
         { onProgress: setCurrentRun },
-        { instructions },
+        {
+          instructions: feedbackAwareInstructions(instructions, importedLeads),
+          signal: controller.signal,
+        },
       );
       await finishRun(completed);
     } finally {
+      if (runController.current === controller) runController.current = null;
       setIsRunning(false);
     }
   }, [apiConfigured, importedLeads, instructions, isRunning, preferences]);
+
+  const cancelRun = useCallback(() => {
+    runController.current?.abort();
+  }, []);
 
   async function finishRun(completed: RunRecord) {
     setCurrentRun(completed);
@@ -161,6 +199,7 @@ export function SourcingDashboard() {
                 instructions={instructions}
                 isRunning={isRunning}
                 leadCount={importedLeads.length}
+                reviewableCount={importedLeads.filter((lead) => !lead.feedbackStatus).length}
                 onClear={clearImportedLeads}
                 onImport={importLeads}
                 onInstructionsChange={updateInstructions}
@@ -176,7 +215,7 @@ export function SourcingDashboard() {
               />
             </div>
             <aside className="sidebar-stack" aria-label="Run status and history">
-              <RunProgress run={currentRun} />
+              <RunProgress isRunning={isRunning} onCancel={cancelRun} run={currentRun} />
               <RunHistory runs={runs} />
             </aside>
           </div>
@@ -187,11 +226,38 @@ export function SourcingDashboard() {
   );
 }
 
+async function rememberRejectedCandidates(runs: RunRecord[]): Promise<void> {
+  const candidates = runs.flatMap((run) =>
+    Object.values(run.rejectedEvidence ?? {}).map((evidence) => ({
+      id: evidence.id,
+      companyName: evidence.companyName.value,
+      websiteUrl: evidence.officialWebsite?.value ?? null,
+      outcome: "rejected" as const,
+      reason: (run.rejectionReasons[evidence.id] ?? []).join("; "),
+      runId: run.id,
+      updatedAt: run.completedAt ?? run.startedAt,
+    })),
+  );
+  if (candidates.length) await dashboardDb.candidateMemory.bulkPut(candidates);
+}
+
+function feedbackAwareInstructions(instructions: string, leads: ImportedLead[]): string {
+  const goodExamples = leads
+    .filter((lead) => lead.feedbackStatus === "good")
+    .slice(0, 3)
+    .map((lead) => `${lead.companyName}${lead.feedbackNotes ? ` (${lead.feedbackNotes})` : ""}`);
+  return [
+    instructions.trim(),
+    goodExamples.length ? `Good fit examples: ${goodExamples.join(", ")}` : "",
+  ].filter(Boolean).join(". ").slice(0, 240);
+}
+
 function clonePreferences(preferences: RunPreferences): RunPreferences {
   return {
     ...preferences,
     weights: { ...preferences.weights },
     acceptedMetals: [...preferences.acceptedMetals],
     acceptedCategories: [...preferences.acceptedCategories],
+    avoidTerms: [...(preferences.avoidTerms ?? [])],
   };
 }

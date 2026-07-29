@@ -2,7 +2,7 @@
 
 import Dexie, { type EntityTable } from "dexie";
 
-import type { DiscoveryCandidate, QualifiedLead, RunPreferences, RunRecord } from "@/domain/types";
+import type { CandidateMemory, DiscoveryCandidate, QualifiedLead, RunPreferences, RunRecord } from "@/domain/types";
 import type { ImportedLead } from "@/domain/imported-leads";
 
 export type StoredPreference = { id: string; updatedAt: string; preferences: RunPreferences };
@@ -16,6 +16,7 @@ class DashboardDb extends Dexie {
   queuedCandidates!: EntityTable<QueuedCandidate, "id">;
   importedLeads!: EntityTable<ImportedLead, "id">;
   workspaceSettings!: EntityTable<WorkspaceSetting, "id">;
+  candidateMemory!: EntityTable<CandidateMemory, "id">;
 
   constructor() {
     super("canadian-jewelry-sourcing-dashboard");
@@ -39,6 +40,15 @@ class DashboardDb extends Dexie {
       queuedCandidates: "id, runId, queuedAt",
       importedLeads: "id, companyName, websiteUrl, importedAt",
       workspaceSettings: "id, updatedAt",
+    });
+    this.version(4).stores({
+      preferences: "id, updatedAt",
+      runs: "id, startedAt, stage",
+      acceptedLeads: "websiteUrl, companyName, dateResearched",
+      queuedCandidates: "id, runId, queuedAt",
+      importedLeads: "id, companyName, websiteUrl, importedAt",
+      workspaceSettings: "id, updatedAt",
+      candidateMemory: "id, companyName, websiteUrl, outcome, updatedAt",
     });
   }
 }

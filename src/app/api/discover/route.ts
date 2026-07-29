@@ -15,7 +15,12 @@ export async function POST(request: Request) {
   if (!process.env.YDC_API_KEY) return failure(503, "Research provider is not configured");
 
   try {
-    const candidates = await new YouClient().discoverCandidates(parsed.data.query, parsed.data.count, { livecrawl: parsed.data.livecrawl });
+    const candidates = await new YouClient().discoverCandidates(
+      parsed.data.query,
+      parsed.data.count,
+      { livecrawl: parsed.data.livecrawl },
+      request.signal,
+    );
     return NextResponse.json({ candidates });
   } catch (error) {
     return providerFailure(error);

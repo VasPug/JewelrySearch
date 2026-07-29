@@ -73,6 +73,7 @@ describe("research API routes", () => {
       candidate,
       DEFAULT_PREFERENCES,
       "Review this uploaded lead",
+      expect.any(AbortSignal),
     );
     expect(failed.status).toBe(502);
   });

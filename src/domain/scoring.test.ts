@@ -91,6 +91,16 @@ function candidate(overrides: {
 }
 
 describe("scoreCandidate hard gates", () => {
+  it("enforces user-defined avoid rules as hard rejections", () => {
+    const result = scoreCandidate(candidate(), {
+      ...DEFAULT_PREFERENCES,
+      avoidTerms: ["manufacturer"],
+    });
+
+    expect(result).toMatchObject({ accepted: false, confidence: 0 });
+    expect(result.reasons).toContain('Avoid rule matched: "manufacturer"');
+  });
+
   it("returns zero when Canadian location is unverified", () => {
     const result = scoreCandidate(candidate({ canadaVerified: false }), DEFAULT_PREFERENCES);
 
@@ -222,6 +232,16 @@ describe("scoreCandidate hard gates", () => {
 });
 
 describe("scoreCandidate deterministic components", () => {
+  it("does not award product-fit points without matching sampled listings", () => {
+    const result = scoreCandidate(
+      candidate({ catalogSamples: [] }),
+      DEFAULT_PREFERENCES,
+    );
+
+    expect(result.breakdown.productFit).toBe(0);
+    expect(result.accepted).toBe(false);
+  });
+
   it("awards a perfect 100 when every weighted signal is fully supported", () => {
     const result = scoreCandidate(
       candidate({

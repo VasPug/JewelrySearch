@@ -878,6 +878,19 @@ button:disabled {
   background: #f4e4de;
 }
 
+.cancel-button {
+  margin-left: auto;
+  padding: 7px 9px;
+  color: var(--terracotta);
+  border: 1px solid #d8b1a7;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .history-panel .section-heading {
   align-items: center;
 }

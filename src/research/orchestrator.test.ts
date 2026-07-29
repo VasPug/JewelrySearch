@@ -36,6 +36,7 @@ function memoryStorage(priorLeads: DedupCandidate[] = []): RunStorage & { runs: 
     saveQueuedCandidates: vi.fn(async () => undefined),
     clearQueuedCandidates: vi.fn(async () => undefined),
     saveAcceptedLeads: vi.fn(async () => undefined),
+    saveCandidateMemory: vi.fn(async () => undefined),
   };
 }
 
@@ -114,6 +115,7 @@ describe("runResearch", () => {
       expect.objectContaining({ id: "new" }),
       expect.objectContaining({ threshold: DEFAULT_PREFERENCES.threshold }),
       "",
+      undefined,
     );
     expect(run.deduplicatedCount).toBe(1);
   });
@@ -128,6 +130,57 @@ describe("runResearch", () => {
 
     expect(storage.saveRun).toHaveBeenCalled();
     expect(storage.saveQueuedCandidates).toHaveBeenCalledWith("run-4", expect.any(Array));
+    expect(storage.saveCandidateMemory).toHaveBeenCalledWith([
+      expect.objectContaining({ companyName: "Seller one", outcome: "accepted" }),
+    ]);
+  });
+
+  it("cancels active research and preserves a partial run", async () => {
+    const controller = new AbortController();
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const research = vi.fn(
+      async (
+        _item: DiscoveryCandidate,
+        _preferences: typeof DEFAULT_PREFERENCES,
+        _instructions: string,
+        signal?: AbortSignal,
+      ) => {
+        markStarted();
+        return new Promise<CandidateEvidence>((_resolve, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Run cancelled", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
+    const storage = memoryStorage();
+    const pending = runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 2, maxCandidates: 2 },
+      {},
+      {
+        gateway: gateway(vi.fn(async () => [candidate("one")]), research),
+        storage,
+        id: () => "cancelled-run",
+        signal: controller.signal,
+      },
+    );
+
+    await started;
+    controller.abort();
+    const run = await pending;
+
+    expect(run).toMatchObject({
+      stage: "cancelled",
+      outcome: "cancelled",
+      researchedCount: 0,
+      completedAt: expect.any(String),
+    });
+    expect(storage.clearQueuedCandidates).toHaveBeenCalledWith("cancelled-run");
   });
 
   it("filters articles before paid research and preserves rejected seller evidence", async () => {
@@ -187,12 +240,35 @@ describe("reviewImportedLeads", () => {
       expect.any(Object),
       expect.any(Object),
       "Check my prior leads",
+      undefined,
     );
     expect(run).toMatchObject({
       stage: "export-ready",
       researchedCount: 2,
       qualifiedCount: 1,
       rejectedCount: 1,
+    });
+  });
+
+  it("does not report a candidate budget limit until an imported review finishes", async () => {
+    const progress: RunRecord[] = [];
+    const run = await reviewImportedLeads(
+      { ...DEFAULT_PREFERENCES, maxCandidates: 1 },
+      [candidate("one"), candidate("two")],
+      { onProgress: (current) => progress.push(current) },
+      {
+        gateway: gateway(vi.fn(), async (item) => researched(item)),
+        storage: memoryStorage(),
+        id: () => "review-budget",
+      },
+    );
+
+    expect(progress[0]?.researchLimitReached).toBe(false);
+    expect(run).toMatchObject({
+      stage: "exhausted",
+      outcome: "candidate_budget_reached",
+      researchedCount: 1,
+      researchLimitReached: true,
     });
   });
 });

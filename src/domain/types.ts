@@ -15,6 +15,7 @@ export type RunPreferences = {
   weights: ScoreWeights;
   acceptedMetals: string[];
   acceptedCategories: string[];
+  avoidTerms: string[];
   unwantedMeaningfulPercent: number;
   unwantedMeaningfulCount: number;
   unwantedLowMax: number;
@@ -167,6 +168,15 @@ export type RunStage =
   | "deduplicating"
   | "exporting"
   | "completed"
+  | "cancelled"
+  | "failed";
+
+export type RunOutcome =
+  | "target_reached"
+  | "candidate_budget_reached"
+  | "search_exhausted"
+  | "completed"
+  | "cancelled"
   | "failed";
 
 export type RunRecord = {
@@ -174,6 +184,7 @@ export type RunRecord = {
   startedAt: string;
   completedAt: string | null;
   stage: RunStage;
+  outcome: RunOutcome | null;
   preferences: RunPreferences;
   discoveredCount: number;
   researchedCount: number;
@@ -185,4 +196,14 @@ export type RunRecord = {
   rejectionReasons: Record<string, RejectionReason[]>;
   rejectedEvidence: Record<string, CandidateEvidence>;
   error: string | null;
+};
+
+export type CandidateMemory = {
+  id: string;
+  companyName: string;
+  websiteUrl: string | null;
+  outcome: "discovered" | "accepted" | "rejected" | "good" | "not_fit" | "already_known";
+  reason: string;
+  runId: string | null;
+  updatedAt: string;
 };

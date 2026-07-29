@@ -9,6 +9,7 @@ type ExistingLeadsPanelProps = {
   instructions: string;
   isRunning: boolean;
   leadCount: number;
+  reviewableCount: number;
   onClear: () => void;
   onImport: (leads: ImportedLead[]) => Promise<void> | void;
   onInstructionsChange: (value: string) => void;
@@ -20,6 +21,7 @@ export function ExistingLeadsPanel({
   instructions,
   isRunning,
   leadCount,
+  reviewableCount,
   onClear,
   onImport,
   onInstructionsChange,
@@ -49,10 +51,13 @@ export function ExistingLeadsPanel({
           <p className="eyebrow">Optional</p>
           <h2 id="existing-leads-heading">Existing leads</h2>
         </div>
-        <span className="record-count">{leadCount} saved</span>
+        <span className="record-count">{leadCount} saved · {reviewableCount} unreviewed</span>
       </div>
 
-      <p>Upload prior leads once. New searches skip uploaded matches automatically.</p>
+      <p>
+        Upload prior leads once. New searches skip uploaded matches automatically. Optional columns:
+        Feedback Status (good, not_fit, already_known) and Feedback Notes.
+      </p>
 
       <div className="existing-leads-controls">
         <label className="file-button">
@@ -67,7 +72,7 @@ export function ExistingLeadsPanel({
         </label>
         <button
           className="secondary-button"
-          disabled={!apiAvailable || isRunning || leadCount === 0}
+          disabled={!apiAvailable || isRunning || reviewableCount === 0}
           onClick={onReview}
           type="button"
         >

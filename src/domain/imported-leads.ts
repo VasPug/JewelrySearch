@@ -4,13 +4,20 @@ export type ImportedLead = {
   websiteUrl: string | null;
   phoneNumber: string;
   instagramUrl: string;
+  feedbackStatus: FeedbackStatus;
+  feedbackNotes: string;
   importedAt: string;
 };
+
+export type FeedbackStatus = "" | "good" | "not_fit" | "already_known";
 
 const COMPANY_HEADERS = ["companyname", "company", "businessname", "name"];
 const WEBSITE_HEADERS = ["websiteurl", "websitelink", "website", "url"];
 const PHONE_HEADERS = ["phonenumber", "phone", "telephone"];
 const INSTAGRAM_HEADERS = ["instagramurl", "instagram", "instagramlink"];
+const FEEDBACK_STATUS_HEADERS = ["feedbackstatus", "reviewstatus", "fitstatus"];
+const FEEDBACK_NOTES_HEADERS = ["feedbacknotes", "reviewnotes", "gutchecknotes", "notes"];
+const FEEDBACK_STATUSES = new Set<FeedbackStatus>(["", "good", "not_fit", "already_known"]);
 
 export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
   const rows = parseCsv(csv);
@@ -19,6 +26,8 @@ export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
   const websiteIndex = findHeader(headers, WEBSITE_HEADERS);
   const phoneIndex = findHeader(headers, PHONE_HEADERS);
   const instagramIndex = findHeader(headers, INSTAGRAM_HEADERS);
+  const feedbackStatusIndex = findHeader(headers, FEEDBACK_STATUS_HEADERS);
+  const feedbackNotesIndex = findHeader(headers, FEEDBACK_NOTES_HEADERS);
 
   if (companyIndex === -1 && websiteIndex === -1) {
     throw new Error("CSV needs a company or website column");
@@ -31,6 +40,7 @@ export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
   for (const row of rows) {
     const companyName = readCell(row, companyIndex);
     const websiteUrl = normalizeWebsite(readCell(row, websiteIndex));
+    const feedbackStatus = normalizeFeedbackStatus(readCell(row, feedbackStatusIndex));
     if (!companyName && !websiteUrl) continue;
 
     const key = websiteUrl ? `website:${websiteUrl}` : `company:${normalizeCompany(companyName)}`;
@@ -43,11 +53,21 @@ export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
       websiteUrl,
       phoneNumber: readCell(row, phoneIndex),
       instagramUrl: readCell(row, instagramIndex),
+      feedbackStatus,
+      feedbackNotes: readCell(row, feedbackNotesIndex),
       importedAt,
     });
   }
 
   return leads;
+}
+
+function normalizeFeedbackStatus(value: string): FeedbackStatus {
+  const normalized = value.trim().toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+  if (!FEEDBACK_STATUSES.has(normalized as FeedbackStatus)) {
+    throw new Error("Feedback Status must be good, not_fit, already_known, or blank");
+  }
+  return normalized as FeedbackStatus;
 }
 
 function parseCsv(csv: string): string[][] {

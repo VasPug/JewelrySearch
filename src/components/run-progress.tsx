@@ -7,11 +7,12 @@ const STAGE_LABELS: Record<RunStage, string> = {
   researching: "Researching evidence",
   scoring: "Applying score model",
   "export-ready": "Export ready",
-  exhausted: "Research budget exhausted",
+  exhausted: "Run finished below target",
   qualifying: "Applying score model",
   deduplicating: "Removing duplicates",
   exporting: "Preparing export",
   completed: "Run complete",
+  cancelled: "Run cancelled",
   failed: "Run failed",
 };
 
@@ -23,7 +24,15 @@ const STAGE_ORDER: RunStage[] = [
   "export-ready",
 ];
 
-export function RunProgress({ run }: { run: RunRecord | null }) {
+export function RunProgress({
+  isRunning = false,
+  onCancel,
+  run,
+}: {
+  isRunning?: boolean;
+  onCancel?: () => void;
+  run: RunRecord | null;
+}) {
   if (!run) {
     return (
       <section className="panel empty-progress" aria-labelledby="progress-heading">
@@ -43,7 +52,7 @@ export function RunProgress({ run }: { run: RunRecord | null }) {
   const currentIndex = STAGE_ORDER.indexOf(run.stage);
   const target = run.preferences.targetLeads;
   const acceptedPercent = Math.min(100, Math.round((run.qualifiedCount / target) * 100));
-  const isFinished = ["completed", "failed", "export-ready", "exhausted"].includes(run.stage);
+  const isFinished = ["completed", "failed", "export-ready", "exhausted", "cancelled"].includes(run.stage);
 
   return (
     <section className="panel run-progress" aria-labelledby="progress-heading" aria-live="polite">
@@ -55,6 +64,11 @@ export function RunProgress({ run }: { run: RunRecord | null }) {
         <span className={`run-state ${isFinished ? "is-finished" : ""}`}>
           {isFinished ? "Final" : "In progress"}
         </span>
+        {isRunning && !isFinished && onCancel ? (
+          <button className="cancel-button" onClick={onCancel} type="button">
+            Cancel run
+          </button>
+        ) : null}
       </div>
 
       <div className="target-progress">
@@ -97,15 +111,34 @@ export function RunProgress({ run }: { run: RunRecord | null }) {
         <Counter label="Errors" value={run.error ? 1 : 0} tone={run.error ? "danger" : undefined} />
       </div>
 
-      {run.error || run.researchLimitReached ? (
+      {run.error || run.outcome === "candidate_budget_reached" || run.outcome === "search_exhausted" || run.outcome === "cancelled" || Boolean(run.completedAt && run.researchLimitReached) ? (
         <p className={`run-note ${run.error ? "is-error" : ""}`}>
-          <strong>{run.error ? "Run stopped:" : "Research budget exhausted:"}</strong>{" "}
-          {run.error ??
-            `The run researched ${run.researchedCount} candidates before reaching the ${target}-lead target.`}
+          <strong>{runNote(run).title}</strong>{" "}
+          {runNote(run).message}
         </p>
       ) : null}
     </section>
   );
+}
+
+function runNote(run: RunRecord): { title: string; message: string } {
+  if (run.error) return { title: "Run stopped:", message: run.error };
+  if (run.outcome === "cancelled") {
+    return {
+      title: "Cancelled:",
+      message: `Kept ${run.qualifiedCount} accepted leads from ${run.researchedCount} completed candidates.`,
+    };
+  }
+  if (run.outcome === "search_exhausted") {
+    return {
+      title: "Search exhausted:",
+      message: `No new candidates remained after checking saved candidate history.`,
+    };
+  }
+  return {
+    title: "Candidate budget reached:",
+    message: `The run researched ${run.researchedCount} candidates before reaching the ${run.preferences.targetLeads}-lead target.`,
+  };
 }
 
 function Counter({

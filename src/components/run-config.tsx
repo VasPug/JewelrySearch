@@ -176,6 +176,22 @@ export function RunConfig({
               })
             }
           />
+          <ChipGroup
+            items={preferences.avoidTerms ?? []}
+            label="Avoid"
+            onAdd={(item) =>
+              onChange({
+                ...preferences,
+                avoidTerms: [...(preferences.avoidTerms ?? []), item],
+              })
+            }
+            onRemove={(item) =>
+              onChange({
+                ...preferences,
+                avoidTerms: (preferences.avoidTerms ?? []).filter((term) => term !== item),
+              })
+            }
+          />
           </div>
         </details>
 
@@ -399,6 +415,7 @@ export function freshDefaultPreferences(): RunPreferences {
     weights: { ...DEFAULT_PREFERENCES.weights },
     acceptedMetals: [...DEFAULT_PREFERENCES.acceptedMetals],
     acceptedCategories: [...DEFAULT_PREFERENCES.acceptedCategories],
+    avoidTerms: [...DEFAULT_PREFERENCES.avoidTerms],
   };
 }
 

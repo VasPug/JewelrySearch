@@ -98,6 +98,22 @@ describe("YouClient", () => {
     await expect(client.discoverCandidates("Canadian jewelry", 10)).rejects.toThrow("timed out");
   });
 
+  it("propagates user cancellation to the provider request", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn((_url: string, request?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      (request?.signal as AbortSignal).addEventListener(
+        "abort",
+        () => reject(new DOMException("Cancelled", "AbortError")),
+      );
+    }));
+    const client = new YouClient({ apiKey: "test-key", fetch });
+    const pending = client.discoverCandidates("Canadian jewelry", 10, {}, controller.signal);
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("rejects Research responses that do not match the evidence schema", async () => {
     const fetch = vi.fn().mockResolvedValue(json({ output: { content: { ...researchContent(), sourceUrls: [] } } }));
     const client = new YouClient({ apiKey: "test-key", fetch });

@@ -139,6 +139,26 @@ function unwantedCategoryGroups(candidate: CandidateEvidence): CandidateEvidence
 function hardGateReasons(candidate: CandidateEvidence, preferences: RunPreferences): string[] {
   const reasons: string[] = [];
 
+  const searchableCandidateText = [
+    candidate.companyName.value,
+    candidate.officialWebsite?.value ?? "",
+    candidate.location.address?.value ?? "",
+    candidate.sellerType?.value ?? "",
+    candidate.mainProductSegment?.value ?? "",
+    ...candidate.acceptedMetals.map((metal) => metal.value),
+    ...candidate.catalogSamples.flatMap((sample) => [
+      sample.title,
+      sample.category ?? "",
+      sample.metal ?? "",
+      sample.productUrl,
+    ]),
+  ].join(" ");
+  for (const avoidTerm of preferences.avoidTerms ?? []) {
+    if (avoidTerm.trim() && normalize(searchableCandidateText).includes(normalize(avoidTerm))) {
+      reasons.push(`Avoid rule matched: "${avoidTerm}"`);
+    }
+  }
+
   if (!candidate.location.verified) {
     reasons.push("Canadian physical location is not verified");
   }
@@ -156,6 +176,10 @@ function hardGateReasons(candidate: CandidateEvidence, preferences: RunPreferenc
 
   if (!candidate.acceptedMetals.some((metal) => isAcceptedMetal(metal.value, preferences))) {
     reasons.push("No accepted jewelry material is verified");
+  }
+
+  if (qualifyingListings(candidate, preferences).length === 0) {
+    reasons.push("No matching catalog listings were verified");
   }
 
   const contacts = candidate.contacts;
@@ -221,6 +245,16 @@ function qualifyingListings(
       sample.metal !== null &&
       isAcceptedCategory(sample.category, preferences) &&
       isAcceptedMetal(sample.metal, preferences),
+  );
+}
+
+function productFitScore(
+  listings: CandidateEvidence["catalogSamples"],
+  preferences: RunPreferences,
+): number {
+  return preferences.weights.productFit * Math.min(
+    listings.length / preferences.unwantedMeaningfulCount,
+    1,
   );
 }
 
@@ -344,7 +378,7 @@ export function scoreCandidate(
 
   const listings = qualifyingListings(candidate, preferences);
   const breakdown: ScoreBreakdown = {
-    productFit: roundToTwo(preferences.weights.productFit),
+    productFit: roundToTwo(productFitScore(listings, preferences)),
     affordability: roundToTwo(affordabilityScore(listings, preferences)),
     inventory: roundToTwo(inventoryScore(listings, candidate, preferences)),
     sellerPriority: roundToTwo(sellerPriorityScore(candidate, preferences)),

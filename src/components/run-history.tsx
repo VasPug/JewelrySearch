@@ -50,13 +50,7 @@ export function RunHistory({ runs }: { runs: RunRecord[] }) {
                   </td>
                   <td>{run.researchedCount}</td>
                   <td>
-                    {run.error
-                      ? "Failed"
-                      : run.researchLimitReached
-                        ? "Budget exhausted"
-                        : run.completedAt
-                          ? "Complete"
-                          : "Active"}
+                    {outcomeLabel(run)}
                   </td>
                   <td className="table-action">
                     <button
@@ -76,6 +70,16 @@ export function RunHistory({ runs }: { runs: RunRecord[] }) {
       )}
     </section>
   );
+}
+
+function outcomeLabel(run: RunRecord): string {
+  if (run.error || run.outcome === "failed") return "Failed";
+  if (run.outcome === "cancelled") return "Cancelled · partial saved";
+  if (run.outcome === "candidate_budget_reached") return "Candidate budget reached";
+  if (run.outcome === "search_exhausted") return "Search exhausted";
+  if (run.outcome === "target_reached") return "Target reached";
+  if (!run.outcome && run.researchLimitReached) return "Candidate budget reached";
+  return run.completedAt ? "Complete" : "Active";
 }
 
 function formatDate(value: string) {

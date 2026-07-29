@@ -96,6 +96,7 @@ describe("RunConfig", () => {
   it.each([
     ["metal", "Accepted metals", "stainless steel", "acceptedMetals"],
     ["category", "Accepted categories", "necklaces", "acceptedCategories"],
+    ["avoid rule", "Avoid", "marketplace", "avoidTerms"],
   ] as const)("adds a new accepted %s", (_, label, value, preferenceKey) => {
     const { onChange } = renderConfig();
 
@@ -243,5 +244,6 @@ function freshPreferences(overrides: Partial<RunPreferences> = {}): RunPreferenc
     },
     acceptedMetals: [...DEFAULT_PREFERENCES.acceptedMetals],
     acceptedCategories: [...DEFAULT_PREFERENCES.acceptedCategories],
+    avoidTerms: [...(overrides.avoidTerms ?? DEFAULT_PREFERENCES.avoidTerms)],
   };
 }

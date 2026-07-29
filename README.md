@@ -77,6 +77,13 @@ an estimated maximum before every run.
 
 The most recent valid configuration, resumable run records, accepted public lead data, and queued candidates are stored locally in IndexedDB. No API key or private customer data is stored.
 
+### Feedback, exclusions, and cancellation
+
+- Add hard exclusions under **Scoring and product filters → Avoid**. Matching candidates are rejected even when their score would otherwise pass.
+- Existing-lead CSVs may include `Feedback Status` (`good`, `not_fit`, `already_known`, or blank) and `Feedback Notes`. Only blank-status rows are eligible for **Review uploaded leads**.
+- Researched candidates and imported feedback are remembered in this browser so later searches skip them.
+- Cancelling a run stops active requests and keeps completed leads available as a partial XLSX export.
+
 ## Data limitations
 
 - Research output is only as current and complete as the cited public sources.

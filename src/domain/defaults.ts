@@ -26,6 +26,9 @@ const defaultCategories: string[] = Object.freeze([
   "anklets",
 ]) as string[];
 
+const defaultAvoidTerms: string[] = [];
+Object.freeze(defaultAvoidTerms);
+
 export const DEFAULT_PREFERENCES: Readonly<RunPreferences> = Object.freeze({
   threshold: 41,
   targetLeads: 5,
@@ -34,6 +37,7 @@ export const DEFAULT_PREFERENCES: Readonly<RunPreferences> = Object.freeze({
   weights: defaultWeights,
   acceptedMetals: defaultMetals,
   acceptedCategories: defaultCategories,
+  avoidTerms: defaultAvoidTerms,
   unwantedMeaningfulPercent: 10,
   unwantedMeaningfulCount: 5,
   unwantedLowMax: 30,

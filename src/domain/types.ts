@@ -37,6 +37,14 @@ export type SellerType =
   | "brand_boutique"
   | "marketplace_social";
 
+/** A search result that is eligible for structured company research. */
+export type DiscoveryCandidate = {
+  id: string;
+  companyName: string;
+  websiteUrl: string | null;
+  discoverySource: string;
+};
+
 export type CanadianLocationEvidence = {
   verified: boolean;
   address: EvidenceValue<string> | null;

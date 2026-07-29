@@ -157,7 +157,7 @@ async function requestApi<T>(url: string, body: unknown, key: string): Promise<T
   return payload[key] as T;
 }
 
-function toQualifiedLead(candidate: CandidateEvidence, confidenceScore: number, scoreBreakdown: QualifiedLead["scoreBreakdown"]): QualifiedLead {
+export function toQualifiedLead(candidate: CandidateEvidence, confidenceScore: number, scoreBreakdown: QualifiedLead["scoreBreakdown"]): QualifiedLead {
   const social = (value: { value: string } | null) => value?.value ?? "";
   return {
     personName: candidate.contacts.personName?.value ?? "", personRole: candidate.contacts.personRole?.value ?? "", companyName: candidate.companyName.value,

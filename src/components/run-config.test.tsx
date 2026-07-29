@@ -68,7 +68,7 @@ describe("RunConfig", () => {
   it("presents Canada as a permanent gate rather than a location preference", () => {
     renderConfig();
 
-    expect(screen.getByText(/Canadian location is a permanent pass\/fail gate/i)).toBeVisible();
+    expect(screen.getByText(/Canadian location is a permanent pass\/fail gate/i)).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /canada/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /location/i })).not.toBeInTheDocument();
   });

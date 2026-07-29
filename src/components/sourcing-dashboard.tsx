@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { QualifiedLead, RunPreferences, RunRecord } from "@/domain/types";
+import type { RunPreferences, RunRecord } from "@/domain/types";
 import { runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
 import { DashboardHeader } from "./dashboard-header";
-import { EvidencePreview } from "./evidence-preview";
 import {
   freshDefaultPreferences,
   isValidPreferences,
@@ -23,7 +22,6 @@ export function SourcingDashboard() {
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
-  const [acceptedLeads, setAcceptedLeads] = useState<QualifiedLead[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
@@ -36,18 +34,16 @@ export function SourcingDashboard() {
         )
         .catch(() => false);
 
-      const [configured, storedPreferences, savedRuns, savedLeads] = await Promise.all([
+      const [configured, storedPreferences, savedRuns] = await Promise.all([
         healthPromise,
         dashboardDb.preferences.get(RECENT_PREFERENCES_ID).catch(() => undefined),
         dashboardDb.runs.orderBy("startedAt").reverse().toArray().catch(() => []),
-        dashboardDb.acceptedLeads.orderBy("dateResearched").reverse().toArray().catch(() => []),
       ]);
 
       if (!active) return;
       setApiConfigured(configured);
       if (storedPreferences) setPreferences(clonePreferences(storedPreferences.preferences));
       setRuns(savedRuns);
-      setAcceptedLeads(savedLeads);
       setCurrentRun(savedRuns.find((run) => !run.completedAt) ?? savedRuns[0] ?? null);
     }
 
@@ -82,48 +78,18 @@ export function SourcingDashboard() {
       onProgress: setCurrentRun,
     });
     setCurrentRun(completed);
-    const [savedRuns, savedLeads] = await Promise.all([
-      dashboardDb.runs.orderBy("startedAt").reverse().toArray(),
-      dashboardDb.acceptedLeads.orderBy("dateResearched").reverse().toArray(),
-    ]);
+    const savedRuns = await dashboardDb.runs.orderBy("startedAt").reverse().toArray();
     setRuns(savedRuns);
-    setAcceptedLeads(savedLeads);
     setIsRunning(false);
   }, [apiConfigured, isRunning, preferences]);
-
-  const visibleLeads = currentRun?.leads.length ? currentRun.leads : acceptedLeads;
 
   return (
     <main className="dashboard" id="top">
       <DashboardHeader apiConfigured={apiConfigured} runCount={runs.length} />
 
-      <section className="hero" aria-labelledby="page-title">
-        <div>
-          <p className="eyebrow">Canadian jewelry intelligence · Evidence first</p>
-          <h1 id="page-title">
-            Find the right sellers, <em>with receipts.</em>
-          </h1>
-        </div>
-        <div className="hero-aside">
-          <p>
-            A deterministic research desk for finding Canadian jewelry sellers that fit your
-            catalog, price, inventory, and contact criteria.
-          </p>
-          <dl>
-            <div>
-              <dt>Country gate</dt>
-              <dd>Canada only</dd>
-            </div>
-            <div>
-              <dt>Target</dt>
-              <dd>{preferences.targetLeads} leads</dd>
-            </div>
-            <div>
-              <dt>Provider</dt>
-              <dd>You.com</dd>
-            </div>
-          </dl>
-        </div>
+      <section className="utility-intro" aria-labelledby="page-title">
+        <h1 id="page-title">Seller search</h1>
+        <p>Canadian jewelry leads · You.com · CSV export</p>
       </section>
 
       <div className="workspace">
@@ -141,12 +107,6 @@ export function SourcingDashboard() {
         </aside>
       </div>
 
-      <EvidencePreview leads={visibleLeads} />
-
-      <footer className="page-footer">
-        <span>Evidence-backed research · Deterministic scoring · No outreach automation</span>
-        <span>Private browser ledger / API key stays server-side</span>
-      </footer>
     </main>
   );
 }

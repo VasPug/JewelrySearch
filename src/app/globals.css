@@ -1262,3 +1262,207 @@ td small {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Compact private utility layout */
+body {
+  background: #f6f6f4;
+  color: #202320;
+  font-size: 13px;
+}
+
+.dashboard {
+  width: min(1080px, calc(100% - 32px));
+  padding-bottom: 32px;
+}
+
+.dashboard-header {
+  min-height: 56px;
+}
+
+.brand strong {
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.header-meta {
+  gap: 16px;
+}
+
+.header-stat {
+  padding-right: 16px;
+}
+
+.utility-intro {
+  padding: 28px 0 18px;
+}
+
+.utility-intro h1 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.utility-intro p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.workspace {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+}
+
+.sidebar-stack {
+  gap: 12px;
+  position: static;
+}
+
+.panel {
+  border-radius: 8px;
+  box-shadow: none;
+  background: #fff;
+}
+
+.panel-config,
+.run-progress,
+.empty-progress,
+.history-panel {
+  padding: 20px;
+}
+
+.section-heading h2 {
+  margin-top: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.section-heading-main p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+.field-group {
+  margin: 20px 0 0;
+}
+
+.primary-controls .control-grid,
+.control-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.control-field,
+.number-field {
+  min-height: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.advanced-settings {
+  margin-top: 12px;
+  border-radius: 6px;
+}
+
+.advanced-settings summary {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.advanced-settings[open] > :not(summary) {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.equation {
+  margin: 12px;
+  padding: 14px;
+  border-radius: 6px;
+}
+
+.equation-formula,
+.eyebrow,
+.stage-list,
+.idle-orbit {
+  display: none;
+}
+
+.weight-grid,
+.chip-groups {
+  gap: 6px;
+}
+
+.config-action {
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.config-action p {
+  font-size: 11px;
+}
+
+.primary-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 6px;
+}
+
+.empty-progress {
+  min-height: 0;
+}
+
+.empty-progress h2 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+}
+
+.empty-progress > p {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.counter-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.counter {
+  padding: 9px;
+  border-radius: 5px;
+}
+
+.history-panel table {
+  font-size: 11px;
+}
+
+@media (max-width: 820px) {
+  .dashboard {
+    width: min(100% - 20px, 680px);
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .header-stat {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .primary-controls .control-grid,
+  .control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-config,
+  .run-progress,
+  .empty-progress,
+  .history-panel {
+    padding: 14px;
+  }
+}

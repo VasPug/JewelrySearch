@@ -8,16 +8,13 @@ export function DashboardHeader({
   return (
     <header className="dashboard-header">
       <a className="brand" href="#top" aria-label="Aurum Sourcing home">
-        <span aria-hidden="true">A</span>
-        <strong>
-          Aurum <i>/</i> Sourcing
-        </strong>
+        <strong>Aurum</strong>
       </a>
 
       <div className="header-meta">
         <div className="header-stat">
-          <span>Research ledger</span>
-          <strong>{runCount} saved runs</strong>
+          <span>Runs</span>
+          <strong>{runCount}</strong>
         </div>
         <div
           className={`api-status ${apiConfigured ? "is-online" : ""}`}
@@ -27,11 +24,10 @@ export function DashboardHeader({
           {apiConfigured === null
             ? "Checking API"
             : apiConfigured
-              ? "Research online"
-              : "Setup required"}
+              ? "Ready"
+              : "API key needed"}
         </div>
       </div>
     </header>
   );
 }
-

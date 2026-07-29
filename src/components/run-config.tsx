@@ -51,21 +51,60 @@ export function RunConfig({
       <div className="panel panel-config">
         <div className="section-heading section-heading-main">
           <div>
-            <p className="eyebrow">Run configuration</p>
-            <h2 id="config-heading">Define the sourcing brief</h2>
-            <p>
-              Tune the acceptance model, then let the system research until it reaches the target
-              or the candidate budget.
-            </p>
+            <h2 id="config-heading">New run</h2>
+            <p>Choose the run size, then start.</p>
           </div>
           <button className="text-button" type="button" onClick={onRestoreDefaults}>
             Restore defaults
           </button>
         </div>
 
-        <ScoreEquation weights={preferences.weights} />
+        <fieldset className="field-group primary-controls">
+          <legend>Basics</legend>
+          <div className="control-grid">
+            <BoundedField
+              label="Accepted lead target"
+              max={500}
+              min={1}
+              onChange={(value) => setNumber("targetLeads", value)}
+              suffix="leads"
+              value={preferences.targetLeads}
+            />
+            <BoundedField
+              label="Candidate research budget"
+              max={1000}
+              min={1}
+              onChange={(value) => setNumber("maxCandidates", value)}
+              suffix="profiles"
+              value={preferences.maxCandidates}
+            />
+            <BoundedField
+              label="Qualification threshold"
+              max={100}
+              min={0}
+              onChange={(value) => setNumber("threshold", value)}
+              suffix="score"
+              value={preferences.threshold}
+            />
+            <BoundedField
+              label="Concurrent research"
+              max={8}
+              min={1}
+              onChange={(value) => setNumber("maxConcurrentResearch", value)}
+              suffix="at once"
+              value={preferences.maxConcurrentResearch}
+            />
+          </div>
+        </fieldset>
 
-        <fieldset className="field-group">
+        <details className="advanced-settings model-settings">
+          <summary>
+            <span>Scoring and product filters</span>
+            <small>Optional</small>
+          </summary>
+          <ScoreEquation weights={preferences.weights} />
+
+          <fieldset className="field-group">
           <legend>Positive score weights</legend>
           <div className="weight-grid">
             {WEIGHT_FIELDS.map(({ key, label, hint }) => (
@@ -91,7 +130,7 @@ export function RunConfig({
           </div>
         </fieldset>
 
-        <div className="chip-groups">
+          <div className="chip-groups">
           <ChipGroup
             items={preferences.acceptedMetals}
             label="Accepted metals"
@@ -114,50 +153,13 @@ export function RunConfig({
               })
             }
           />
-        </div>
-
-        <fieldset className="field-group">
-          <legend>Run controls</legend>
-          <div className="control-grid">
-            <BoundedField
-              label="Qualification threshold"
-              max={100}
-              min={0}
-              onChange={(value) => setNumber("threshold", value)}
-              suffix="score"
-              value={preferences.threshold}
-            />
-            <BoundedField
-              label="Accepted lead target"
-              max={500}
-              min={1}
-              onChange={(value) => setNumber("targetLeads", value)}
-              suffix="leads"
-              value={preferences.targetLeads}
-            />
-            <BoundedField
-              label="Candidate research budget"
-              max={1000}
-              min={1}
-              onChange={(value) => setNumber("maxCandidates", value)}
-              suffix="profiles"
-              value={preferences.maxCandidates}
-            />
-            <BoundedField
-              label="Concurrent research"
-              max={8}
-              min={1}
-              onChange={(value) => setNumber("maxConcurrentResearch", value)}
-              suffix="at once"
-              value={preferences.maxConcurrentResearch}
-            />
           </div>
-        </fieldset>
+        </details>
 
         <details className="advanced-settings">
           <summary>
-            <span>Advanced penalty controls</span>
-            <small>6 calibrated rules</small>
+            <span>Penalty rules</span>
+            <small>Optional</small>
           </summary>
           <div className="control-grid">
             <BoundedField

@@ -1,7 +1,7 @@
 "use client";
 
-import { downloadLeadsCsv } from "@/domain/csv";
 import type { RunRecord } from "@/domain/types";
+import { downloadRunWorkbook } from "@/domain/xlsx";
 
 export function RunHistory({ runs }: { runs: RunRecord[] }) {
   return (
@@ -60,12 +60,12 @@ export function RunHistory({ runs }: { runs: RunRecord[] }) {
                   </td>
                   <td className="table-action">
                     <button
-                      aria-label={`Download ${run.id} CSV`}
-                      disabled={run.leads.length === 0}
-                      onClick={() => downloadLeadsCsv(run)}
+                      aria-label={`Download ${run.id} Excel workbook`}
+                      disabled={run.leads.length === 0 && Object.keys(run.rejectionReasons).length === 0}
+                      onClick={() => void downloadRunWorkbook(run)}
                       type="button"
                     >
-                      CSV <span aria-hidden="true">↓</span>
+                      XLSX <span aria-hidden="true">↓</span>
                     </button>
                   </td>
                 </tr>
@@ -92,4 +92,3 @@ function formatTime(value: string) {
     minute: "2-digit",
   }).format(new Date(value));
 }
-

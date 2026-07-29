@@ -1,6 +1,6 @@
 # Aurum Sourcing
 
-An evidence-backed dashboard for discovering and qualifying Canadian jewelry sellers. Aurum uses You.com for research, applies deterministic scoring in application code, retains source URLs for every accepted lead, and exports spreadsheet-safe CSV files.
+An evidence-backed dashboard for discovering and qualifying Canadian jewelry sellers. Aurum uses You.com for research, applies deterministic scoring in application code, retains source URLs for every researched lead, and exports Excel workbooks with separate Accepted and Rejected tabs.
 
 ## Local setup
 
@@ -52,8 +52,9 @@ npm run eval:trial -- --execute
 ```
 
 The trial researches no more than five candidates, ranks qualifying leads by
-their deterministic confidence score, and writes up to five results to
-`eval-results/` as both CSV and JSON. The JSON report also retains run counts,
+their deterministic confidence score, and writes an XLSX workbook plus a JSON
+report to `eval-results/`. The workbook separates accepted and rejected sellers,
+while the JSON report also retains run counts,
 rejections, evidence, and the exact preferences used for the evaluation.
 
 For a broader controlled evaluation:

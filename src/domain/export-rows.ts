@@ -1,4 +1,4 @@
-import type { QualifiedLead, RunRecord, ScoreBreakdown } from "./types";
+import type { QualifiedLead, ScoreBreakdown } from "./types";
 
 type CsvColumn = {
   header: string;
@@ -41,6 +41,12 @@ const COLUMNS: readonly CsvColumn[] = [
   { header: "date_researched", value: (lead) => researchDate(lead.dateResearched) },
 ];
 
+export const LEAD_EXPORT_HEADERS = COLUMNS.map((column) => column.header);
+
+export function leadExportRow(lead: QualifiedLead): Array<string | number> {
+  return COLUMNS.map((column) => column.value(lead));
+}
+
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
@@ -63,30 +69,4 @@ function formatScoreBreakdown(breakdown: ScoreBreakdown): string {
     `unwanted_penalty=${breakdown.unwantedPenalty}`,
     `confidence=${breakdown.confidence}`,
   ].join(";");
-}
-
-function escapeCsv(value: string | number): string {
-  let cell = String(value);
-  if (/^[=+\-@]/.test(cell)) cell = `'${cell}`;
-  if (/[",\r\n]/.test(cell)) cell = `"${cell.replaceAll('"', '""')}"`;
-  return cell;
-}
-
-export function serializeLeadsCsv(leads: QualifiedLead[]): string {
-  const header = COLUMNS.map((column) => column.header).join(",");
-  const rows = leads.map((lead) =>
-    COLUMNS.map((column) => escapeCsv(column.value(lead))).join(","),
-  );
-
-  return `\uFEFF${[header, ...rows].join("\r\n")}\r\n`;
-}
-
-export function downloadLeadsCsv(run: RunRecord): void {
-  const blob = new Blob([serializeLeadsCsv(run.leads)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `qualified-sellers-${run.id}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
 }

@@ -3,8 +3,8 @@ import path from "node:path";
 
 import { loadEnvConfig } from "@next/env";
 
-import { serializeLeadsCsv } from "../src/domain/csv";
 import { DEFAULT_PREFERENCES } from "../src/domain/defaults";
+import { buildRunWorkbook } from "../src/domain/workbook";
 import type {
   QualifiedLead,
   RunPreferences,
@@ -106,9 +106,9 @@ Run the paid trial with:
   const outputDirectory = path.join(process.cwd(), "eval-results");
   await mkdir(outputDirectory, { recursive: true });
 
-  const csvPath = path.join(outputDirectory, `${run.id}.csv`);
+  const workbookPath = path.join(outputDirectory, `${run.id}.xlsx`);
   const reportPath = path.join(outputDirectory, `${run.id}.json`);
-  await writeFile(csvPath, serializeLeadsCsv(rankedLeads), "utf8");
+  await writeFile(workbookPath, await buildRunWorkbook(rankedRun));
   await writeFile(
   reportPath,
   JSON.stringify(
@@ -128,7 +128,7 @@ Run the paid trial with:
 
   console.log(`Trial finished with stage: ${run.stage}`);
   console.log(`Qualified results: ${rankedLeads.length}`);
-  console.log(`CSV: ${csvPath}`);
+  console.log(`Workbook: ${workbookPath}`);
   console.log(`Evaluation report: ${reportPath}`);
 
   if (run.error) {

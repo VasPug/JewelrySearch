@@ -93,6 +93,24 @@ describe("RunConfig", () => {
     expect(onRestoreDefaults).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["metal", "Accepted metals", "stainless steel", "acceptedMetals"],
+    ["category", "Accepted categories", "necklaces", "acceptedCategories"],
+  ] as const)("adds a new accepted %s", (_, label, value, preferenceKey) => {
+    const { onChange } = renderConfig();
+
+    fireEvent.change(screen.getByRole("textbox", { name: `Add ${label.toLowerCase()}` }), {
+      target: { value },
+    });
+    fireEvent.click(screen.getByRole("button", { name: `Add to ${label.toLowerCase()}` }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        [preferenceKey]: [...DEFAULT_PREFERENCES[preferenceKey], value],
+      }),
+    );
+  });
+
   it("enforces threshold, target, candidate budget, and concurrency bounds", () => {
     renderConfig();
 

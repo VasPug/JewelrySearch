@@ -527,6 +527,40 @@ button:disabled {
   line-height: 1;
 }
 
+.chip-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip-add input {
+  min-width: 0;
+  flex: 1;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+}
+
+.chip-add button {
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chip-add button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

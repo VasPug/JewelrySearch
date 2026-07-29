@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import { type ChangeEvent, type FormEvent, useState } from "react";
 
 import { DEFAULT_PREFERENCES } from "@/domain/defaults";
 import type { RunPreferences, ScoreWeights } from "@/domain/types";
@@ -142,6 +142,12 @@ export function RunConfig({
           <ChipGroup
             items={preferences.acceptedMetals}
             label="Accepted metals"
+            onAdd={(item) =>
+              onChange({
+                ...preferences,
+                acceptedMetals: [...preferences.acceptedMetals, item],
+              })
+            }
             onRemove={(item) =>
               onChange({
                 ...preferences,
@@ -152,6 +158,12 @@ export function RunConfig({
           <ChipGroup
             items={preferences.acceptedCategories}
             label="Accepted categories"
+            onAdd={(item) =>
+              onChange({
+                ...preferences,
+                acceptedCategories: [...preferences.acceptedCategories, item],
+              })
+            }
             onRemove={(item) =>
               onChange({
                 ...preferences,
@@ -255,12 +267,27 @@ export function RunConfig({
 function ChipGroup({
   items,
   label,
+  onAdd,
   onRemove,
 }: {
   items: string[];
   label: string;
+  onAdd: (item: string) => void;
   onRemove: (item: string) => void;
 }) {
+  const [draft, setDraft] = useState("");
+  const normalizedDraft = draft.trim();
+  const isDuplicate = items.some(
+    (item) => item.toLocaleLowerCase() === normalizedDraft.toLocaleLowerCase(),
+  );
+
+  function addItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!normalizedDraft || isDuplicate) return;
+    onAdd(normalizedDraft);
+    setDraft("");
+  }
+
   return (
     <div className="chip-group">
       <div className="chip-group-heading">
@@ -277,6 +304,22 @@ function ChipGroup({
           </span>
         ))}
       </div>
+      <form className="chip-add" onSubmit={addItem}>
+        <input
+          aria-label={`Add ${label.toLowerCase()}`}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="Add another"
+          type="text"
+          value={draft}
+        />
+        <button
+          aria-label={`Add to ${label.toLowerCase()}`}
+          disabled={!normalizedDraft || isDuplicate}
+          type="submit"
+        >
+          Add
+        </button>
+      </form>
     </div>
   );
 }

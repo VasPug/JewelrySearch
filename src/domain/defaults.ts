@@ -28,9 +28,9 @@ const defaultCategories: string[] = Object.freeze([
 
 export const DEFAULT_PREFERENCES: Readonly<RunPreferences> = Object.freeze({
   threshold: 75,
-  targetLeads: 100,
-  maxCandidates: 600,
-  maxConcurrentResearch: 3,
+  targetLeads: 5,
+  maxCandidates: 20,
+  maxConcurrentResearch: 1,
   weights: defaultWeights,
   acceptedMetals: defaultMetals,
   acceptedCategories: defaultCategories,

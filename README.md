@@ -60,7 +60,11 @@ rejections, evidence, and the exact preferences used for the evaluation.
 
 Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.
 
-The default run aims for 100 new, deduplicated accepted sellers. Preferences let an operator adjust the target, qualification threshold, maximum researched candidates, and concurrency. Candidate budget and concurrency are direct API cost controls: begin with a small target and budget when validating a new brief.
+The budget-safe default run targets 5 accepted sellers, researches no more than
+20 candidates, and uses one concurrent research call. At current You.com
+standard Research pricing, that is approximately $1.03 USD at the maximum
+candidate budget, including up to five discovery searches. The dashboard shows
+an estimated maximum before every run.
 
 The most recent valid configuration, resumable run records, accepted public lead data, and queued candidates are stored locally in IndexedDB. No API key or private customer data is stored.
 

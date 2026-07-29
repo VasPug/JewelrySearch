@@ -34,6 +34,7 @@ export function RunConfig({
   onStart,
 }: RunConfigProps) {
   const canStart = apiAvailable && isValidPreferences(preferences) && !isRunning;
+  const estimatedMaximumCost = preferences.maxCandidates * 0.05 + 0.025;
 
   function setNumber<K extends keyof RunPreferences>(key: K, value: number) {
     onChange({ ...preferences, [key]: value });
@@ -221,6 +222,7 @@ export function RunConfig({
                 ? "You.com research is configured and ready."
                 : "Add YDC_API_KEY to .env.local before starting research."}
             </p>
+            <p>Estimated maximum: ~${estimatedMaximumCost.toFixed(2)} USD this run.</p>
           </div>
           <button
             className="primary-button"

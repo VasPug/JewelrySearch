@@ -56,7 +56,7 @@ describe("YouClient", () => {
     const [requestUrl, request] = fetch.mock.calls[0] as [string, RequestInit];
     expect(requestUrl).toBe("https://api.you.com/v1/research");
     expect(request?.headers).toMatchObject({ "X-API-Key": "test-key", "Content-Type": "application/json" });
-    expect(JSON.parse(String(request?.body))).toMatchObject({ research_effort: "lite", output_schema: { type: "object" } });
+    expect(JSON.parse(String(request?.body))).toMatchObject({ research_effort: "standard", output_schema: { type: "object" } });
     expect(result).toMatchObject({ id: candidate.id, discoverySource: candidate.discoverySource, companyName: { value: candidate.companyName } });
   });
 

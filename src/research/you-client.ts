@@ -73,7 +73,7 @@ export class YouClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input: candidateResearchPrompt(candidate, preferences),
-        research_effort: "lite",
+        research_effort: "standard",
         source_control: { country: "CA" },
         output_schema: RESEARCH_OUTPUT_SCHEMA,
       }),

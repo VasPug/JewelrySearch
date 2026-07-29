@@ -64,6 +64,7 @@ export function RunConfig({
           <legend>Basics</legend>
           <div className="control-grid">
             <BoundedField
+              info="How many qualified sellers the run should try to return."
               label="Accepted lead target"
               max={500}
               min={1}
@@ -72,6 +73,7 @@ export function RunConfig({
               value={preferences.targetLeads}
             />
             <BoundedField
+              info="The maximum number of seller candidates the system may research and charge for."
               label="Candidate research budget"
               max={1000}
               min={1}
@@ -80,6 +82,7 @@ export function RunConfig({
               value={preferences.maxCandidates}
             />
             <BoundedField
+              info="The minimum confidence score a seller needs to enter the CSV."
               label="Qualification threshold"
               max={100}
               min={0}
@@ -88,6 +91,7 @@ export function RunConfig({
               value={preferences.threshold}
             />
             <BoundedField
+              info="How many seller research requests may run simultaneously."
               label="Concurrent research"
               max={8}
               min={1}
@@ -111,7 +115,10 @@ export function RunConfig({
             {WEIGHT_FIELDS.map(({ key, label, hint }) => (
               <label className="number-field" key={key}>
                 <span>
-                  <b>{label}</b>
+                  <span className="field-label">
+                    <b>{label}</b>
+                    <InfoTip label={label} text={`${hint}.`} />
+                  </span>
                   <small>{hint}</small>
                 </span>
                 <span className="number-input">
@@ -164,6 +171,7 @@ export function RunConfig({
           </summary>
           <div className="control-grid">
             <BoundedField
+              info="The catalog percentage that makes an unwanted product type significant."
               label="Meaningful catalog share"
               max={100}
               min={0}
@@ -172,6 +180,7 @@ export function RunConfig({
               value={preferences.unwantedMeaningfulPercent}
             />
             <BoundedField
+              info="The listing count that makes an unwanted product type significant even when its percentage is low."
               label="Meaningful listing count"
               max={100}
               min={0}
@@ -180,6 +189,7 @@ export function RunConfig({
               value={preferences.unwantedMeaningfulCount}
             />
             <BoundedField
+              info="Secondary unwanted products at or below this price receive no score penalty."
               label="Low penalty ceiling"
               max={100}
               min={0}
@@ -188,6 +198,7 @@ export function RunConfig({
               value={preferences.unwantedLowMax}
             />
             <BoundedField
+              info="Secondary unwanted products up to this price receive the medium penalty."
               label="Medium penalty ceiling"
               max={200}
               min={0}
@@ -196,6 +207,7 @@ export function RunConfig({
               value={preferences.unwantedMediumMax}
             />
             <BoundedField
+              info="Meaningful unwanted inventory above this price rejects the seller."
               label="General category rejection"
               max={100}
               min={0}
@@ -204,6 +216,7 @@ export function RunConfig({
               value={preferences.unwantedGeneralRejectAbove}
             />
             <BoundedField
+              info="Meaningful moissanite or cubic-zirconia inventory above this price rejects the seller."
               label="Moissanite rejection"
               max={100}
               min={0}
@@ -269,6 +282,7 @@ function ChipGroup({
 }
 
 function BoundedField({
+  info,
   label,
   max,
   min,
@@ -276,6 +290,7 @@ function BoundedField({
   suffix,
   value,
 }: {
+  info: string;
   label: string;
   max: number;
   min: number;
@@ -285,7 +300,10 @@ function BoundedField({
 }) {
   return (
     <label className="control-field">
-      <span>{label}</span>
+      <span className="field-label">
+        {label}
+        <InfoTip label={label} text={info} />
+      </span>
       <span className="number-input">
         <input
           aria-label={label}
@@ -299,6 +317,22 @@ function BoundedField({
         <i>{suffix}</i>
       </span>
     </label>
+  );
+}
+
+function InfoTip({ label, text }: { label: string; text: string }) {
+  return (
+    <span
+      aria-label={`About ${label}`}
+      className="info-tip"
+      role="button"
+      tabIndex={0}
+    >
+      <span aria-hidden="true">i</span>
+      <span className="info-tooltip" role="tooltip">
+        {text}
+      </span>
+    </span>
   );
 }
 

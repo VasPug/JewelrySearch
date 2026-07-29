@@ -15,7 +15,7 @@ import {
 import { RunHistory } from "./run-history";
 import { RunProgress } from "./run-progress";
 
-const RECENT_PREFERENCES_ID = "most-recent-valid-v2";
+const RECENT_PREFERENCES_ID = "most-recent-valid-v3";
 
 export function SourcingDashboard() {
   const [preferences, setPreferences] = useState<RunPreferences>(freshDefaultPreferences);

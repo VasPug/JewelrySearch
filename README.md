@@ -68,8 +68,8 @@ Trial arguments are capped at 50 candidates, 20 results, and concurrency 5.
 
 Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.
 
-The budget-safe default run targets 5 accepted sellers, researches no more than
-20 candidates, and uses one concurrent research call. At current You.com
+The budget-safe default run uses a 60-point qualification threshold, targets 5
+accepted sellers, researches no more than 20 candidates, and uses one concurrent research call. At current You.com
 standard Research pricing, that is approximately $1.05 USD at the maximum
 candidate budget, including up to ten discovery searches. The dashboard shows
 an estimated maximum before every run.

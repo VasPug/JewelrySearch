@@ -6,3 +6,4 @@ test-results/
 .env
 *.tsbuildinfo
 eval-results/
+.DS_Store

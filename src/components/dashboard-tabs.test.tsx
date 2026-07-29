@@ -18,4 +18,17 @@ describe("DashboardTabs", () => {
     expect(screen.getByText("Run the search")).toBeVisible();
     expect(screen.getByText("Download the XLSX")).toBeVisible();
   });
+
+  it("supports arrow-key navigation between tabs", () => {
+    render(<DashboardTabs searchContent={<div>Search workspace</div>} />);
+    const searchTab = screen.getByRole("tab", { name: "Search" });
+    const helpTab = screen.getByRole("tab", { name: "How to use" });
+
+    searchTab.focus();
+    fireEvent.keyDown(searchTab, { key: "ArrowRight" });
+
+    expect(helpTab).toHaveFocus();
+    expect(helpTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Set your limits")).toBeVisible();
+  });
 });

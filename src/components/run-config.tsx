@@ -1,8 +1,9 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState } from "react";
+import { type ChangeEvent, type FormEvent, useId, useState } from "react";
 
 import { DEFAULT_PREFERENCES } from "@/domain/defaults";
+import { validatePreferences } from "@/domain/scoring";
 import type { RunPreferences, ScoreWeights } from "@/domain/types";
 
 import { ScoreEquation } from "./score-equation";
@@ -124,9 +125,11 @@ export function RunConfig({
                 <span className="number-input">
                   <input
                     aria-label={`${label} weight`}
+                    autoComplete="off"
                     inputMode="numeric"
                     max="100"
                     min="1"
+                    name={`${key}Weight`}
                     onChange={(event) => setWeight(key, numberValue(event))}
                     type="number"
                     value={preferences.weights[key]}
@@ -224,7 +227,7 @@ export function RunConfig({
               max={100}
               min={0}
               onChange={(value) => setNumber("unwantedGeneralRejectAbove", value)}
-              suffix="%"
+              suffix="CAD"
               value={preferences.unwantedGeneralRejectAbove}
             />
             <BoundedField
@@ -233,7 +236,7 @@ export function RunConfig({
               max={100}
               min={0}
               onChange={(value) => setNumber("unwantedMoissaniteRejectAbove", value)}
-              suffix="%"
+              suffix="CAD"
               value={preferences.unwantedMoissaniteRejectAbove}
             />
           </div>
@@ -307,8 +310,10 @@ function ChipGroup({
       <form className="chip-add" onSubmit={addItem}>
         <input
           aria-label={`Add ${label.toLowerCase()}`}
+          autoComplete="off"
+          name={`add-${label.toLowerCase().replaceAll(" ", "-")}`}
           onChange={(event) => setDraft(event.currentTarget.value)}
-          placeholder="Add another"
+          placeholder="Add another…"
           type="text"
           value={draft}
         />
@@ -350,9 +355,11 @@ function BoundedField({
       <span className="number-input">
         <input
           aria-label={label}
+          autoComplete="off"
           inputMode="numeric"
           max={max}
           min={min}
+          name={label.toLowerCase().replaceAll(" ", "-")}
           onChange={(event) => onChange(numberValue(event))}
           type="number"
           value={value}
@@ -364,15 +371,18 @@ function BoundedField({
 }
 
 function InfoTip({ label, text }: { label: string; text: string }) {
+  const descriptionId = useId();
+
   return (
     <span
       aria-label={`About ${label}`}
+      aria-describedby={descriptionId}
       className="info-tip"
-      role="button"
+      role="note"
       tabIndex={0}
     >
       <span aria-hidden="true">i</span>
-      <span className="info-tooltip" role="tooltip">
+      <span className="info-tooltip" id={descriptionId} role="tooltip">
         {text}
       </span>
     </span>
@@ -396,6 +406,7 @@ export function isValidPreferences(preferences: RunPreferences) {
   const weights = Object.values(preferences.weights);
 
   return (
+    validatePreferences(preferences).valid &&
     weights.reduce((sum, weight) => sum + weight, 0) === 100 &&
     weights.every((weight) => weight > 0 && weight <= 100) &&
     preferences.threshold >= 0 &&

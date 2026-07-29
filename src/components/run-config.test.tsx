@@ -136,6 +136,20 @@ describe("RunConfig", () => {
     );
   });
 
+  it("labels rejection price ceilings in CAD", () => {
+    renderConfig();
+
+    const generalField = screen.getByRole("spinbutton", {
+      name: /general category rejection/i,
+    }).closest("label");
+    const moissaniteField = screen.getByRole("spinbutton", {
+      name: /moissanite rejection/i,
+    }).closest("label");
+
+    expect(generalField).toHaveTextContent("CAD");
+    expect(moissaniteField).toHaveTextContent("CAD");
+  });
+
   it("updates the qualification threshold used by the Accepted workbook tab", () => {
     const { onChange } = renderConfig();
 
@@ -183,6 +197,14 @@ describe("RunConfig", () => {
       isValidPreferences(
         freshPreferences({
           weights: { ...DEFAULT_PREFERENCES.weights, productFit: 29 },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isValidPreferences(
+        freshPreferences({
+          unwantedMediumMax: 80,
+          unwantedGeneralRejectAbove: 70,
         }),
       ),
     ).toBe(false);

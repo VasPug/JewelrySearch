@@ -37,6 +37,25 @@ npm run build
 
 If Playwright browsers are installed, browser tests can be run with `npm run test:e2e`.
 
+## Five-candidate trial evaluation
+
+Preview the trial budget without making API calls:
+
+```bash
+npm run eval:trial
+```
+
+Run the paid trial:
+
+```bash
+npm run eval:trial -- --execute
+```
+
+The trial researches no more than five candidates, ranks qualifying leads by
+their deterministic confidence score, and writes up to five results to
+`eval-results/` as both CSV and JSON. The JSON report also retains run counts,
+rejections, evidence, and the exact preferences used for the evaluation.
+
 ## How qualification works
 
 Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.

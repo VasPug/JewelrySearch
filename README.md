@@ -1,0 +1,65 @@
+# Aurum Sourcing
+
+An evidence-backed dashboard for discovering and qualifying Canadian jewelry sellers. Aurum uses You.com for research, applies deterministic scoring in application code, retains source URLs for every accepted lead, and exports spreadsheet-safe CSV files.
+
+## Local setup
+
+Requirements: Node.js 20 or newer and a You.com API key.
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+Add the server-only provider credential to `.env.local`:
+
+```dotenv
+YDC_API_KEY=your-key-here
+```
+
+The browser only receives a configured/not-configured health response. The API key is never written to IndexedDB, returned by an API route, or included in a CSV.
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+## Verification
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+If Playwright browsers are installed, browser tests can be run with `npm run test:e2e`.
+
+## How qualification works
+
+Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.
+
+The default run aims for 100 new, deduplicated accepted sellers. Preferences let an operator adjust the target, qualification threshold, maximum researched candidates, and concurrency. Candidate budget and concurrency are direct API cost controls: begin with a small target and budget when validating a new brief.
+
+The most recent valid configuration, resumable run records, accepted public lead data, and queued candidates are stored locally in IndexedDB. No API key or private customer data is stored.
+
+## Data limitations
+
+- Research output is only as current and complete as the cited public sources.
+- Evidence URLs should be reviewed before using a lead in a high-stakes workflow.
+- Inferred personal emails are labeled as unverified and are never presented as published facts.
+- A passing score is a deterministic sourcing signal, not an endorsement or outreach approval.
+- The application does not send outreach, schedule activity, sync a CRM, or provide multi-user collaboration.
+
+## Production
+
+Create and validate an optimized build with:
+
+```bash
+npm run build
+npm run start
+```
+
+Configure `YDC_API_KEY` in the deployment environment. Do not expose it through a `NEXT_PUBLIC_` variable.

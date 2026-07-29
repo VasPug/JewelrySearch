@@ -158,7 +158,11 @@ export type QualifiedLead = {
 export type RunStage =
   | "queued"
   | "discovering"
+  | "verifying"
   | "researching"
+  | "scoring"
+  | "export-ready"
+  | "exhausted"
   | "qualifying"
   | "deduplicating"
   | "exporting"

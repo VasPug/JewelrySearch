@@ -35,6 +35,7 @@ describe("DEFAULT_PREFERENCES", () => {
       "gold-plated",
     ]);
     expect(DEFAULT_PREFERENCES.acceptedCategories).toEqual([
+      "jewelry",
       "chains",
       "bracelets",
       "earrings",

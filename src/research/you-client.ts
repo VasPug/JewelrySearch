@@ -6,7 +6,7 @@ import { RESEARCH_OUTPUT_SCHEMA, researchOutputSchema, toCandidateEvidence } fro
 const SEARCH_URL = "https://api.you.com/v1/search";
 const RESEARCH_URL = "https://api.you.com/v1/research";
 const MAX_ATTEMPTS = 3;
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 

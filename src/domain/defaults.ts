@@ -18,6 +18,7 @@ const defaultMetals: string[] = Object.freeze([
 ]) as string[];
 
 const defaultCategories: string[] = Object.freeze([
+  "jewelry",
   "chains",
   "bracelets",
   "earrings",

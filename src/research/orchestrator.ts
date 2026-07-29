@@ -26,7 +26,7 @@ export type RunCallbacks = {
 
 export type RunDependencies = { gateway?: ResearchGateway; storage?: RunStorage; id?: () => string };
 
-const DISCOVERY_BATCH_SIZE = 20;
+const DISCOVERY_BATCH_SIZE = 5;
 
 const browserGateway: ResearchGateway = {
   async discoverCandidates(query, count) {

@@ -56,6 +56,14 @@ their deterministic confidence score, and writes up to five results to
 `eval-results/` as both CSV and JSON. The JSON report also retains run counts,
 rejections, evidence, and the exact preferences used for the evaluation.
 
+For a broader controlled evaluation:
+
+```bash
+npm run eval:trial -- --execute --max-candidates=20 --result-limit=5 --concurrency=3
+```
+
+Trial arguments are capped at 50 candidates, 20 results, and concurrency 5.
+
 ## How qualification works
 
 Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.

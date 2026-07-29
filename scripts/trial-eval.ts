@@ -15,20 +15,29 @@ import { runResearch } from "../src/research/orchestrator";
 import { discoveryQueries } from "../src/research/prompts";
 import { YouClient } from "../src/research/you-client";
 
-const TRIAL_RESULT_LIMIT = 5;
+const DEFAULT_RESULT_LIMIT = 5;
+const DEFAULT_CANDIDATE_LIMIT = 5;
 
 async function main(): Promise<void> {
   const execute = process.argv.includes("--execute");
+  const resultLimit = readIntegerArgument("--result-limit", DEFAULT_RESULT_LIMIT, 1, 20);
+  const candidateLimit = readIntegerArgument(
+    "--max-candidates",
+    DEFAULT_CANDIDATE_LIMIT,
+    resultLimit,
+    50,
+  );
+  const concurrency = readIntegerArgument("--concurrency", 1, 1, 5);
   loadEnvConfig(process.cwd());
 
   if (!execute) {
     console.log(`
 Aurum trial evaluation (dry run)
 
-This trial researches at most ${TRIAL_RESULT_LIMIT} candidates and returns up to
-${TRIAL_RESULT_LIMIT} qualifying results. Maximum provider calls:
+This trial researches at most ${candidateLimit} candidates and returns up to
+${resultLimit} qualifying results. Maximum provider calls:
 
-  - ${TRIAL_RESULT_LIMIT} You.com Research calls
+  - ${candidateLimit} You.com Research calls
   - ${discoveryQueries().length} You.com Search calls (normally only one)
 
 No API calls were made.
@@ -45,9 +54,9 @@ Run the paid trial with:
 
   const preferences: RunPreferences = {
   ...structuredClone(DEFAULT_PREFERENCES),
-  targetLeads: TRIAL_RESULT_LIMIT,
-  maxCandidates: TRIAL_RESULT_LIMIT,
-  maxConcurrentResearch: 1,
+  targetLeads: resultLimit,
+  maxCandidates: candidateLimit,
+  maxConcurrentResearch: concurrency,
 };
 
   const client = new YouClient();
@@ -64,14 +73,16 @@ Run the paid trial with:
   },
   };
 
-  console.log(`Starting capped trial: at most ${TRIAL_RESULT_LIMIT} candidates will be researched.`);
+  console.log(
+    `Starting capped trial: at most ${candidateLimit} candidates, ${resultLimit} results, concurrency ${concurrency}.`,
+  );
 
   const run = await runResearch(
   preferences,
   {
     onProgress(current) {
       process.stdout.write(
-        `\rDiscovered ${current.discoveredCount} | Researched ${current.researchedCount}/${TRIAL_RESULT_LIMIT} | Qualified ${current.qualifiedCount}`,
+        `\rDiscovered ${current.discoveredCount} | Researched ${current.researchedCount}/${candidateLimit} | Qualified ${current.qualifiedCount}`,
       );
     },
   },
@@ -90,7 +101,7 @@ Run the paid trial with:
 
   const rankedLeads = [...run.leads]
   .sort((left, right) => right.confidenceScore - left.confidenceScore)
-  .slice(0, TRIAL_RESULT_LIMIT);
+  .slice(0, resultLimit);
   const rankedRun: RunRecord = { ...run, leads: rankedLeads };
   const outputDirectory = path.join(process.cwd(), "eval-results");
   await mkdir(outputDirectory, { recursive: true });
@@ -103,8 +114,8 @@ Run the paid trial with:
   JSON.stringify(
     {
       evaluation: {
-        candidateResearchCap: TRIAL_RESULT_LIMIT,
-        resultLimit: TRIAL_RESULT_LIMIT,
+        candidateResearchCap: candidateLimit,
+        resultLimit,
         preferences,
       },
       run: rankedRun,
@@ -123,6 +134,21 @@ Run the paid trial with:
   if (run.error) {
     throw new Error(`Run error: ${run.error}`);
   }
+}
+
+function readIntegerArgument(
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = process.argv.find((argument) => argument.startsWith(`${name}=`))?.split("=")[1];
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }
 
 main().catch((error: unknown) => {

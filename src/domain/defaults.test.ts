@@ -42,4 +42,11 @@ describe("DEFAULT_PREFERENCES", () => {
       "anklets",
     ]);
   });
+
+  it("prevents consumers from changing nested default values", () => {
+    expect(Object.isFrozen(DEFAULT_PREFERENCES)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.weights)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.acceptedMetals)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.acceptedCategories)).toBe(true);
+  });
 });

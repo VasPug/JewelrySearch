@@ -59,12 +59,21 @@ describe("research API routes", () => {
   it("returns researched evidence and maps permanent provider errors to 502", async () => {
     vi.stubEnv("YDC_API_KEY", "test-key");
     researchCandidate.mockResolvedValue({ id: "north", companyName: { value: "North Star" } });
-    const successful = await research(request("/api/research", { candidate, preferences: DEFAULT_PREFERENCES }));
+    const successful = await research(request("/api/research", {
+      candidate,
+      preferences: DEFAULT_PREFERENCES,
+      instructions: "Review this uploaded lead",
+    }));
     researchCandidate.mockRejectedValue({ status: 422, message: "bad request" });
     const failed = await research(request("/api/research", { candidate, preferences: DEFAULT_PREFERENCES }));
 
     expect(successful.status).toBe(200);
     expect(await successful.json()).toEqual({ candidate: { id: "north", companyName: { value: "North Star" } } });
+    expect(researchCandidate).toHaveBeenCalledWith(
+      candidate,
+      DEFAULT_PREFERENCES,
+      "Review this uploaded lead",
+    );
     expect(failed.status).toBe(502);
   });
 });

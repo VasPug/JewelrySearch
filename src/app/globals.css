@@ -57,6 +57,7 @@ a {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 summary:focus-visible {
   outline: 3px solid rgb(175 130 80 / 45%);
   outline-offset: 3px;
@@ -1396,6 +1397,92 @@ body {
 .workspace {
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 12px;
+}
+
+.config-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.existing-leads {
+  padding: 18px 20px;
+}
+
+.existing-leads-copy,
+.existing-leads-controls {
+  display: flex;
+  align-items: center;
+}
+
+.existing-leads-copy {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.existing-leads h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.existing-leads > p {
+  margin: 5px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.existing-leads-controls {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-button,
+.secondary-button {
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.secondary-button:disabled {
+  opacity: 0.45;
+}
+
+.instruction-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.instruction-field textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 10px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--white);
+  font: inherit;
+  font-size: 11px;
+}
+
+.field-error {
+  color: var(--terracotta) !important;
 }
 
 .sidebar-stack {

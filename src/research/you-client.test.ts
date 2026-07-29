@@ -51,12 +51,20 @@ describe("YouClient", () => {
     const fetch = vi.fn().mockResolvedValue(json({ output: { content: researchContent(), content_type: "object", sources: [] } }));
     const client = new YouClient({ apiKey: "test-key", fetch });
 
-    const result = await client.researchCandidate(candidate, preferences);
+    const result = await client.researchCandidate(
+      candidate,
+      preferences,
+      "Focus on ready-to-ship chains",
+    );
 
     const [requestUrl, request] = fetch.mock.calls[0] as [string, RequestInit];
     expect(requestUrl).toBe("https://api.you.com/v1/research");
     expect(request?.headers).toMatchObject({ "X-API-Key": "test-key", "Content-Type": "application/json" });
-    expect(JSON.parse(String(request?.body))).toMatchObject({ research_effort: "standard", output_schema: { type: "object" } });
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      input: expect.stringContaining("Focus on ready-to-ship chains"),
+      research_effort: "standard",
+      output_schema: { type: "object" },
+    });
     expect(result).toMatchObject({ id: candidate.id, discoverySource: candidate.discoverySource, companyName: { value: candidate.companyName } });
   });
 

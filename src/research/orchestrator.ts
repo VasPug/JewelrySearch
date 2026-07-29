@@ -8,12 +8,12 @@ import { prefilterCandidate } from "./prefilter";
 
 export type ResearchGateway = {
   discoverCandidates: (query: string, count: number) => Promise<DiscoveryCandidate[]>;
-  researchCandidate: (candidate: DiscoveryCandidate, preferences: RunPreferences) => Promise<CandidateEvidence>;
+  researchCandidate: (candidate: DiscoveryCandidate, preferences: RunPreferences, instructions: string) => Promise<CandidateEvidence>;
 };
 
 export type RunStorage = {
   saveRun: (run: RunRecord) => Promise<void>;
-  listAcceptedLeads: () => Promise<QualifiedLead[]>;
+  listKnownLeads: () => Promise<DedupCandidate[]>;
   saveQueuedCandidates: (runId: string, candidates: DiscoveryCandidate[]) => Promise<void>;
   clearQueuedCandidates: (runId: string) => Promise<void>;
   saveAcceptedLeads: (leads: QualifiedLead[]) => Promise<void>;
@@ -24,7 +24,12 @@ export type RunCallbacks = {
   onStage?: (stage: RunStage) => void;
 };
 
-export type RunDependencies = { gateway?: ResearchGateway; storage?: RunStorage; id?: () => string };
+export type RunDependencies = {
+  gateway?: ResearchGateway;
+  storage?: RunStorage;
+  id?: () => string;
+  instructions?: string;
+};
 
 const DISCOVERY_BATCH_SIZE = 5;
 
@@ -32,14 +37,17 @@ const browserGateway: ResearchGateway = {
   async discoverCandidates(query, count) {
     return requestApi<DiscoveryCandidate[]>("/api/discover", { query, count }, "candidates");
   },
-  async researchCandidate(candidate, preferences) {
-    return requestApi<CandidateEvidence>("/api/research", { candidate, preferences }, "candidate");
+  async researchCandidate(candidate, preferences, instructions) {
+    return requestApi<CandidateEvidence>("/api/research", { candidate, preferences, instructions }, "candidate");
   },
 };
 
 const browserStorage: RunStorage = {
   saveRun: (run) => dashboardDb.runs.put(structuredClone(run)).then(() => undefined),
-  listAcceptedLeads: () => dashboardDb.acceptedLeads.toArray(),
+  listKnownLeads: async () => [
+    ...(await dashboardDb.acceptedLeads.toArray()),
+    ...(await dashboardDb.importedLeads.toArray()),
+  ],
   saveQueuedCandidates: async (runId, candidates) => {
     await dashboardDb.queuedCandidates.bulkPut(candidates.map((candidate) => ({ id: `${runId}:${candidate.id}`, runId, candidate, queuedAt: new Date().toISOString() })));
   },
@@ -50,6 +58,7 @@ const browserStorage: RunStorage = {
 export async function runResearch(preferences: RunPreferences, callbacks: RunCallbacks = {}, dependencies: RunDependencies = {}): Promise<RunRecord> {
   const gateway = dependencies.gateway ?? browserGateway;
   const storage = dependencies.storage ?? browserStorage;
+  const instructions = dependencies.instructions?.trim().slice(0, 240) ?? "";
   const run: RunRecord = {
     id: dependencies.id?.() ?? crypto.randomUUID(), startedAt: new Date().toISOString(), completedAt: null, stage: "discovering", preferences,
     discoveredCount: 0, researchedCount: 0, qualifiedCount: 0, rejectedCount: 0, deduplicatedCount: 0, researchLimitReached: false, leads: [], rejectionReasons: {}, rejectedEvidence: {}, error: null,
@@ -64,11 +73,13 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
   const stage = async (next: RunStage) => { run.stage = next; callbacks.onStage?.(next); emit(); await persist(); };
 
   try {
-    const priorLeads = await storage.listAcceptedLeads();
+    const priorLeads = await storage.listKnownLeads();
     const known: DedupCandidate[] = [...priorLeads];
     await persist();
     emit();
-    const queries = discoveryQueries();
+    const queries = discoveryQueries().map((query) =>
+      instructions ? `${query} ${instructions}`.slice(0, 500) : query,
+    );
     let queryIndex = 0;
     let emptyDiscoveries = 0;
 
@@ -98,7 +109,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       await stage("researching");
       await concurrentForEach(batch, preferences.maxConcurrentResearch, async (item) => {
         try {
-          const evidence = await gateway.researchCandidate(item, preferences);
+          const evidence = await gateway.researchCandidate(item, preferences, instructions);
           run.researchedCount += 1;
           await stage("scoring");
           const result = scoreCandidate(evidence, preferences);
@@ -136,6 +147,79 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
   run.completedAt = new Date().toISOString();
   await persist();
   emit();
+  return run;
+}
+
+export async function reviewImportedLeads(
+  preferences: RunPreferences,
+  candidates: DiscoveryCandidate[],
+  callbacks: RunCallbacks = {},
+  dependencies: RunDependencies = {},
+): Promise<RunRecord> {
+  const gateway = dependencies.gateway ?? browserGateway;
+  const storage = dependencies.storage ?? browserStorage;
+  const instructions = dependencies.instructions?.trim().slice(0, 240) ?? "";
+  const batch = candidates.slice(0, preferences.maxCandidates);
+  const run: RunRecord = {
+    id: dependencies.id?.() ?? crypto.randomUUID(),
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    stage: "researching",
+    preferences,
+    discoveredCount: candidates.length,
+    researchedCount: 0,
+    qualifiedCount: 0,
+    rejectedCount: 0,
+    deduplicatedCount: 0,
+    researchLimitReached: candidates.length > batch.length,
+    leads: [],
+    rejectionReasons: {},
+    rejectedEvidence: {},
+    error: null,
+  };
+
+  const emit = () => callbacks.onProgress?.(structuredClone(run));
+  const persist = async () => {
+    emit();
+    await storage.saveRun(structuredClone(run));
+  };
+
+  try {
+    await storage.saveQueuedCandidates(run.id, batch);
+    await persist();
+    await concurrentForEach(batch, preferences.maxConcurrentResearch, async (item) => {
+      try {
+        const evidence = await gateway.researchCandidate(item, preferences, instructions);
+        const result = scoreCandidate(evidence, preferences);
+        run.researchedCount += 1;
+        if (result.accepted) {
+          const lead = toQualifiedLead(evidence, result.confidence, result.breakdown);
+          run.leads.push(lead);
+          run.qualifiedCount += 1;
+          await storage.saveAcceptedLeads([lead]);
+        } else {
+          run.rejectedCount += 1;
+          run.rejectedEvidence[item.id] = evidence;
+          run.rejectionReasons[item.id] = result.reasons;
+        }
+      } catch (error) {
+        run.researchedCount += 1;
+        run.rejectedCount += 1;
+        run.rejectionReasons[item.id] = [
+          error instanceof Error ? error.message : "Candidate research failed",
+        ];
+      }
+      await persist();
+    });
+    await storage.clearQueuedCandidates(run.id);
+    run.stage = "export-ready";
+  } catch (error) {
+    run.error = error instanceof Error ? error.message : "Run failed";
+    run.stage = "failed";
+  }
+
+  run.completedAt = new Date().toISOString();
+  await persist();
   return run;
 }
 

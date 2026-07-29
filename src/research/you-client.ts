@@ -67,12 +67,13 @@ export class YouClient {
   async researchCandidate(
     candidate: DiscoveryCandidate,
     preferences: RunPreferences,
+    instructions = "",
   ): Promise<CandidateEvidence> {
     const payload = await this.request(RESEARCH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        input: candidateResearchPrompt(candidate, preferences),
+        input: candidateResearchPrompt(candidate, preferences, instructions),
         research_effort: "standard",
         source_control: { country: "CA" },
         output_schema: RESEARCH_OUTPUT_SCHEMA,

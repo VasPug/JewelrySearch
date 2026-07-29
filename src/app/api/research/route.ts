@@ -11,6 +11,7 @@ const preferencesSchema = z.object({
 const requestSchema = z.object({
   candidate: z.object({ id: z.string().min(1), companyName: z.string().min(1), websiteUrl: z.string().url().nullable(), discoverySource: z.string().min(1) }).strict(),
   preferences: preferencesSchema,
+  instructions: z.string().trim().max(240).optional().default(""),
 }).strict();
 
 export async function POST(request: Request) {
@@ -20,7 +21,11 @@ export async function POST(request: Request) {
   if (!process.env.YDC_API_KEY) return failure(503, "Research provider is not configured");
 
   try {
-    const candidate = await new YouClient().researchCandidate(parsed.data.candidate, parsed.data.preferences);
+    const candidate = await new YouClient().researchCandidate(
+      parsed.data.candidate,
+      parsed.data.preferences,
+      parsed.data.instructions,
+    );
     return NextResponse.json({ candidate });
   } catch (error) {
     if (error instanceof YouApiError || (typeof error === "object" && error !== null && "status" in error)) {

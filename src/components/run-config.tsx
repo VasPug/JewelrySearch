@@ -49,7 +49,7 @@ export function RunConfig({
   }
 
   return (
-    <section className="config-stack" aria-labelledby="config-heading">
+    <section aria-labelledby="config-heading">
       <div className="panel panel-config">
         <div className="section-heading section-heading-main">
           <div>

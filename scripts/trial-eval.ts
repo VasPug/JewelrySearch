@@ -63,7 +63,7 @@ Run the paid trial with:
   const acceptedLeads: QualifiedLead[] = [];
   const memoryStorage: RunStorage = {
   async saveRun() {},
-  async listAcceptedLeads() {
+  async listKnownLeads() {
     return [];
   },
   async saveQueuedCandidates() {},

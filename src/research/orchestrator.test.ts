@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_PREFERENCES } from "@/domain/defaults";
-import type { CandidateEvidence, DiscoveryCandidate, QualifiedLead, RunRecord } from "@/domain/types";
+import type { CandidateEvidence, DiscoveryCandidate, RunRecord } from "@/domain/types";
+import type { DedupCandidate } from "@/domain/deduplicate";
 
-import { runResearch, type ResearchGateway, type RunStorage } from "./orchestrator";
+import {
+  reviewImportedLeads,
+  runResearch,
+  type ResearchGateway,
+  type RunStorage,
+} from "./orchestrator";
 
 const sourceUrl = "https://example.ca";
 const evidence = <T>(value: T) => ({ value, sourceUrl, confidence: 1 });
@@ -21,12 +27,12 @@ const researched = (item: DiscoveryCandidate): CandidateEvidence => ({
   tradeShowParticipation: evidence(true), discoverySource: sourceUrl, sourceUrls: [sourceUrl],
 });
 
-function memoryStorage(priorLeads: QualifiedLead[] = []): RunStorage & { runs: RunRecord[] } {
+function memoryStorage(priorLeads: DedupCandidate[] = []): RunStorage & { runs: RunRecord[] } {
   const runs: RunRecord[] = [];
   return {
     runs,
     saveRun: vi.fn(async (run) => { runs.push(structuredClone(run)); }),
-    listAcceptedLeads: vi.fn(async () => priorLeads),
+    listKnownLeads: vi.fn(async () => priorLeads),
     saveQueuedCandidates: vi.fn(async () => undefined),
     clearQueuedCandidates: vi.fn(async () => undefined),
     saveAcceptedLeads: vi.fn(async () => undefined),
@@ -72,7 +78,7 @@ describe("runResearch", () => {
   });
 
   it("deduplicates candidates from the current and prior runs and stops at the research limit", async () => {
-    const prior = [{ websiteUrl: "https://prior.ca", companyName: "Prior", phoneNumber: "", instagramUrl: "" }] as QualifiedLead[];
+    const prior = [{ websiteUrl: "https://prior.ca", companyName: "Prior", phoneNumber: "", instagramUrl: "" }];
     const run = await runResearch(
       { ...DEFAULT_PREFERENCES, targetLeads: 10, maxCandidates: 2, maxConcurrentResearch: 1 },
       {},
@@ -81,6 +87,35 @@ describe("runResearch", () => {
 
     expect(run).toMatchObject({ stage: "exhausted", researchedCount: 2, researchLimitReached: true });
     expect(run.deduplicatedCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("excludes imported historical leads before paid research", async () => {
+    const research = vi.fn(async (item: DiscoveryCandidate) => researched(item));
+    const storage = memoryStorage([
+      { companyName: "Already Searched", websiteUrl: "https://known.ca" },
+    ]);
+
+    const known = candidate("known");
+    known.companyName = "Already Searched";
+    known.websiteUrl = "https://known.ca/products";
+
+    const run = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 1, maxCandidates: 1 },
+      {},
+      {
+        gateway: gateway(vi.fn(async () => [known, candidate("new")]), research),
+        storage,
+        id: () => "run-imported",
+      },
+    );
+
+    expect(research).toHaveBeenCalledOnce();
+    expect(research).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "new" }),
+      expect.objectContaining({ threshold: DEFAULT_PREFERENCES.threshold }),
+      "",
+    );
+    expect(run.deduplicatedCount).toBe(1);
   });
 
   it("persists an in-progress run and queued candidates before research begins", async () => {
@@ -119,5 +154,45 @@ describe("runResearch", () => {
     expect(research).toHaveBeenCalledTimes(1);
     expect(run.rejectionReasons[article.id]).toContain("Search result is an article rather than a seller");
     expect(run.rejectedEvidence[rejected.id]).toMatchObject({ id: rejected.id });
+  });
+});
+
+describe("reviewImportedLeads", () => {
+  it("researches uploaded sellers without running discovery", async () => {
+    const discover = vi.fn();
+    const research = vi.fn(async (item: DiscoveryCandidate) => {
+      const result = researched(item);
+      if (item.id === "bad") result.location.verified = false;
+      return result;
+    });
+
+    const run = await reviewImportedLeads(
+      { ...DEFAULT_PREFERENCES, maxCandidates: 2 },
+      [
+        { id: "good", companyName: "Good Seller", websiteUrl: "https://good.ca", discoverySource: "csv_upload" },
+        { id: "bad", companyName: "Bad Seller", websiteUrl: "https://bad.ca", discoverySource: "csv_upload" },
+      ],
+      {},
+      {
+        gateway: gateway(discover, research),
+        storage: memoryStorage(),
+        id: () => "review-1",
+        instructions: "Check my prior leads",
+      },
+    );
+
+    expect(discover).not.toHaveBeenCalled();
+    expect(research).toHaveBeenCalledTimes(2);
+    expect(research).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      "Check my prior leads",
+    );
+    expect(run).toMatchObject({
+      stage: "export-ready",
+      researchedCount: 2,
+      qualifiedCount: 1,
+      rejectedCount: 1,
+    });
   });
 });

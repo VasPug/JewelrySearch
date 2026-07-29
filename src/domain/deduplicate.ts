@@ -27,15 +27,14 @@ export function candidateKeys(candidate: DedupCandidate): string[] {
   return keys;
 }
 
-/** Strong identity matches win; a company name is only usable within its city. */
+/** Strong identity matches and exact normalized company names prevent repeat research. */
 export function isDuplicate(candidate: DedupCandidate, existing: DedupCandidate[]): boolean {
   const candidateStrongKeys = new Set(candidateKeys(candidate));
   const name = normalizeName(readName(candidate));
-  const city = normalizeCity(readCity(candidate));
 
   return existing.some((item) => {
     if (candidateKeys(item).some((key) => candidateStrongKeys.has(key))) return true;
-    return Boolean(name && city && name === normalizeName(readName(item)) && city === normalizeCity(readCity(item)));
+    return Boolean(name && name === normalizeName(readName(item)));
   });
 }
 
@@ -68,14 +67,4 @@ function normalizeName(value: string | undefined): string | null {
 
 function readName(candidate: DedupCandidate): string | undefined {
   return typeof candidate.companyName === "string" ? candidate.companyName : candidate.companyName?.value;
-}
-
-function readCity(candidate: DedupCandidate): string | null | undefined {
-  return candidate.city ?? candidate.location?.address?.value;
-}
-
-function normalizeCity(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const city = value.split(",")[0]?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return city || null;
 }

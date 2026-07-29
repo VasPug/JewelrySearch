@@ -20,11 +20,18 @@ describe("isDuplicate", () => {
     )).toBe(true);
   });
 
-  it("matches company punctuation and casing only when the Canadian city agrees", () => {
+  it("matches company punctuation and casing even when city data differs", () => {
     const existing = [{ companyName: "Northern Jewelry Co.", city: "Toronto, ON, Canada" }];
 
     expect(isDuplicate({ companyName: "northern-jewelry co", city: "Toronto" }, existing)).toBe(true);
-    expect(isDuplicate({ companyName: "northern-jewelry co", city: "Vancouver, BC, Canada" }, existing)).toBe(false);
+    expect(isDuplicate({ companyName: "northern-jewelry co", city: "Vancouver, BC, Canada" }, existing)).toBe(true);
+  });
+
+  it("matches an exact normalized company name from an uploaded lead without a website", () => {
+    expect(isDuplicate(
+      { companyName: "Maple Silver Co." },
+      [{ companyName: "maple-silver co" }],
+    )).toBe(true);
   });
 
   it("does not treat a generic word as a duplicate company", () => {

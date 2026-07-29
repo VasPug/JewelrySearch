@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { RunPreferences, RunRecord } from "@/domain/types";
-import { runResearch } from "@/research/orchestrator";
+import type { ImportedLead } from "@/domain/imported-leads";
+import type { DiscoveryCandidate, RunPreferences, RunRecord } from "@/domain/types";
+import { reviewImportedLeads, runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardTabs } from "./dashboard-tabs";
+import { ExistingLeadsPanel } from "./existing-leads-panel";
 import {
   freshDefaultPreferences,
   isValidPreferences,
@@ -17,6 +19,7 @@ import { RunHistory } from "./run-history";
 import { RunProgress } from "./run-progress";
 
 const RECENT_PREFERENCES_ID = "most-recent-valid-v3";
+const EXISTING_LEADS_SETTINGS_ID = "existing-leads-v1";
 
 export function SourcingDashboard() {
   const [preferences, setPreferences] = useState<RunPreferences>(freshDefaultPreferences);
@@ -24,6 +27,8 @@ export function SourcingDashboard() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [importedLeads, setImportedLeads] = useState<ImportedLead[]>([]);
+  const [instructions, setInstructions] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -35,10 +40,12 @@ export function SourcingDashboard() {
         )
         .catch(() => false);
 
-      const [configured, storedPreferences, savedRuns] = await Promise.all([
+      const [configured, storedPreferences, savedRuns, savedImportedLeads, savedSettings] = await Promise.all([
         healthPromise,
         dashboardDb.preferences.get(RECENT_PREFERENCES_ID).catch(() => undefined),
         dashboardDb.runs.orderBy("startedAt").reverse().toArray().catch(() => []),
+        dashboardDb.importedLeads.toArray().catch(() => []),
+        dashboardDb.workspaceSettings.get(EXISTING_LEADS_SETTINGS_ID).catch(() => undefined),
       ]);
 
       if (!active) return;
@@ -46,6 +53,8 @@ export function SourcingDashboard() {
       if (storedPreferences) setPreferences(clonePreferences(storedPreferences.preferences));
       setRuns(savedRuns);
       setCurrentRun(savedRuns.find((run) => !run.completedAt) ?? savedRuns[0] ?? null);
+      setImportedLeads(savedImportedLeads);
+      setInstructions(savedSettings?.instructions ?? "");
     }
 
     void hydrateDashboard();
@@ -75,14 +84,64 @@ export function SourcingDashboard() {
     if (isRunning || !apiConfigured || !isValidPreferences(preferences)) return;
 
     setIsRunning(true);
-    const completed = await runResearch(clonePreferences(preferences), {
-      onProgress: setCurrentRun,
+    try {
+      const completed = await runResearch(
+        clonePreferences(preferences),
+        { onProgress: setCurrentRun },
+        { instructions },
+      );
+      await finishRun(completed);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [apiConfigured, instructions, isRunning, preferences]);
+
+  const importLeads = useCallback(async (leads: ImportedLead[]) => {
+    await dashboardDb.importedLeads.bulkPut(leads);
+    setImportedLeads(await dashboardDb.importedLeads.toArray());
+  }, []);
+
+  const clearImportedLeads = useCallback(() => {
+    void dashboardDb.importedLeads.clear().then(() => setImportedLeads([]));
+  }, []);
+
+  const updateInstructions = useCallback((value: string) => {
+    const next = value.slice(0, 240);
+    setInstructions(next);
+    void dashboardDb.workspaceSettings.put({
+      id: EXISTING_LEADS_SETTINGS_ID,
+      instructions: next,
+      updatedAt: new Date().toISOString(),
     });
+  }, []);
+
+  const reviewLeads = useCallback(async () => {
+    if (isRunning || !apiConfigured || !isValidPreferences(preferences) || importedLeads.length === 0) return;
+    const candidates: DiscoveryCandidate[] = importedLeads.map((lead) => ({
+      id: lead.id,
+      companyName: lead.companyName,
+      websiteUrl: lead.websiteUrl,
+      discoverySource: "csv_upload",
+    }));
+
+    setIsRunning(true);
+    try {
+      const completed = await reviewImportedLeads(
+        clonePreferences(preferences),
+        candidates,
+        { onProgress: setCurrentRun },
+        { instructions },
+      );
+      await finishRun(completed);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [apiConfigured, importedLeads, instructions, isRunning, preferences]);
+
+  async function finishRun(completed: RunRecord) {
     setCurrentRun(completed);
-    const savedRuns = await dashboardDb.runs.orderBy("startedAt").reverse().toArray();
-    setRuns(savedRuns);
-    setIsRunning(false);
-  }, [apiConfigured, isRunning, preferences]);
+    setRuns(await dashboardDb.runs.orderBy("startedAt").reverse().toArray());
+  }
 
   return (
     <main className="dashboard" id="top">
@@ -96,14 +155,26 @@ export function SourcingDashboard() {
       <DashboardTabs
         searchContent={
           <div className="workspace">
-            <RunConfig
-              apiAvailable={apiConfigured === true}
-              isRunning={isRunning}
-              onChange={updatePreferences}
-              onRestoreDefaults={restoreDefaults}
-              onStart={() => void startRun()}
-              preferences={preferences}
-            />
+            <div className="config-stack">
+              <ExistingLeadsPanel
+                apiAvailable={apiConfigured === true}
+                instructions={instructions}
+                isRunning={isRunning}
+                leadCount={importedLeads.length}
+                onClear={clearImportedLeads}
+                onImport={importLeads}
+                onInstructionsChange={updateInstructions}
+                onReview={() => void reviewLeads()}
+              />
+              <RunConfig
+                apiAvailable={apiConfigured === true}
+                isRunning={isRunning}
+                onChange={updatePreferences}
+                onRestoreDefaults={restoreDefaults}
+                onStart={() => void startRun()}
+                preferences={preferences}
+              />
+            </div>
             <aside className="sidebar-stack" aria-label="Run status and history">
               <RunProgress run={currentRun} />
               <RunHistory runs={runs} />

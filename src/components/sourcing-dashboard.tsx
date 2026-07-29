@@ -89,7 +89,7 @@ export function SourcingDashboard() {
 
       <section className="utility-intro" aria-labelledby="page-title">
         <h1 id="page-title">Seller search</h1>
-        <p>Canadian jewelry leads · You.com · CSV export</p>
+        <p>Canadian jewelry leads · You.com · XLSX export</p>
       </section>
 
       <div className="workspace">

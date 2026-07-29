@@ -27,7 +27,7 @@ const defaultCategories: string[] = Object.freeze([
 ]) as string[];
 
 export const DEFAULT_PREFERENCES: Readonly<RunPreferences> = Object.freeze({
-  threshold: 60,
+  threshold: 41,
   targetLeads: 5,
   maxCandidates: 20,
   maxConcurrentResearch: 1,

@@ -5,7 +5,7 @@ import { DEFAULT_PREFERENCES } from "./defaults";
 describe("DEFAULT_PREFERENCES", () => {
   it("provides the recommended qualification and unwanted-inventory settings", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({
-      threshold: 60,
+      threshold: 41,
       targetLeads: 5,
       maxCandidates: 20,
       maxConcurrentResearch: 1,

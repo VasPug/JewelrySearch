@@ -118,6 +118,22 @@ describe("RunConfig", () => {
     );
   });
 
+  it("updates the qualification threshold used by the Accepted workbook tab", () => {
+    const { onChange } = renderConfig();
+
+    expect(screen.getByText(/changes save automatically in this browser/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("spinbutton", { name: /qualification threshold/i }), {
+      target: { value: "45" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threshold: 45,
+      }),
+    );
+    expect(screen.getByText(/accepted tab/i)).toBeInTheDocument();
+  });
+
   it("disables Start when the server API is unavailable", () => {
     const preferences = {
       ...DEFAULT_PREFERENCES,

@@ -53,7 +53,7 @@ export function RunConfig({
         <div className="section-heading section-heading-main">
           <div>
             <h2 id="config-heading">New run</h2>
-            <p>Choose the run size, then start.</p>
+            <p>Choose the run size, then start. Changes save automatically in this browser.</p>
           </div>
           <button className="text-button" type="button" onClick={onRestoreDefaults}>
             Restore defaults
@@ -82,7 +82,7 @@ export function RunConfig({
               value={preferences.maxCandidates}
             />
             <BoundedField
-              info="The minimum confidence score a seller needs to enter the CSV."
+              info="The minimum confidence score a seller needs to enter the Accepted tab in the XLSX workbook."
               label="Qualification threshold"
               max={100}
               min={0}

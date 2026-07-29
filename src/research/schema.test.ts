@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { researchOutputSchema } from "./schema";
 
@@ -8,7 +9,7 @@ const evidence = <T>(value: T) => ({
   confidence: 0.9,
 });
 
-const response = (): Record<string, any> => ({
+const response = (): z.input<typeof researchOutputSchema> => ({
   companyName: evidence("Northern Jewelry Co."),
   officialWebsite: evidence("https://northern.example.ca"),
   location: {

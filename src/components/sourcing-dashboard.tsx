@@ -7,6 +7,7 @@ import { runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
 import { DashboardHeader } from "./dashboard-header";
+import { DashboardTabs } from "./dashboard-tabs";
 import {
   freshDefaultPreferences,
   isValidPreferences,
@@ -92,20 +93,24 @@ export function SourcingDashboard() {
         <p>Canadian jewelry leads · You.com · XLSX export</p>
       </section>
 
-      <div className="workspace">
-        <RunConfig
-          apiAvailable={apiConfigured === true}
-          isRunning={isRunning}
-          onChange={updatePreferences}
-          onRestoreDefaults={restoreDefaults}
-          onStart={() => void startRun()}
-          preferences={preferences}
-        />
-        <aside className="sidebar-stack" aria-label="Run status and history">
-          <RunProgress run={currentRun} />
-          <RunHistory runs={runs} />
-        </aside>
-      </div>
+      <DashboardTabs
+        searchContent={
+          <div className="workspace">
+            <RunConfig
+              apiAvailable={apiConfigured === true}
+              isRunning={isRunning}
+              onChange={updatePreferences}
+              onRestoreDefaults={restoreDefaults}
+              onStart={() => void startRun()}
+              preferences={preferences}
+            />
+            <aside className="sidebar-stack" aria-label="Run status and history">
+              <RunProgress run={currentRun} />
+              <RunHistory runs={runs} />
+            </aside>
+          </div>
+        }
+      />
 
     </main>
   );

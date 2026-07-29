@@ -1310,6 +1310,55 @@ body {
   color: var(--muted);
 }
 
+.dashboard-tabs {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dashboard-tabs button {
+  padding: 0 0 9px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dashboard-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.how-to-panel {
+  max-width: 620px;
+  padding: 22px;
+}
+
+.how-to-panel ol {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.how-to-panel li {
+  padding-left: 4px;
+}
+
+.how-to-panel strong,
+.how-to-panel span {
+  display: block;
+}
+
+.how-to-panel span {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .workspace {
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 12px;

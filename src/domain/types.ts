@@ -207,3 +207,10 @@ export type CandidateMemory = {
   runId: string | null;
   updatedAt: string;
 };
+
+export type CriteriaChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+};

@@ -2,12 +2,24 @@
 
 import Dexie, { type EntityTable } from "dexie";
 
-import type { CandidateMemory, DiscoveryCandidate, QualifiedLead, RunPreferences, RunRecord } from "@/domain/types";
+import type {
+  CandidateMemory,
+  CriteriaChatMessage,
+  DiscoveryCandidate,
+  QualifiedLead,
+  RunPreferences,
+  RunRecord,
+} from "@/domain/types";
 import type { ImportedLead } from "@/domain/imported-leads";
 
 export type StoredPreference = { id: string; updatedAt: string; preferences: RunPreferences };
 export type QueuedCandidate = { id: string; runId: string; candidate: DiscoveryCandidate; queuedAt: string };
-export type WorkspaceSetting = { id: string; instructions: string; updatedAt: string };
+export type WorkspaceSetting = {
+  id: string;
+  instructions?: string;
+  criteriaMessages?: CriteriaChatMessage[];
+  updatedAt: string;
+};
 
 class DashboardDb extends Dexie {
   preferences!: EntityTable<StoredPreference, "id">;

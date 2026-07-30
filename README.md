@@ -4,7 +4,7 @@ An evidence-backed dashboard for discovering and qualifying Canadian jewelry sel
 
 ## Local setup
 
-Requirements: Node.js 20 or newer and a You.com API key.
+Requirements: Node.js 20 or newer, a You.com API key, and an OpenAI API key.
 
 ```bash
 npm install
@@ -15,9 +15,10 @@ Add the server-only provider credential to `.env.local`:
 
 ```dotenv
 YDC_API_KEY=your-key-here
+OPENAI_API_KEY=your-openai-key-here
 ```
 
-The browser only receives a configured/not-configured health response. The API key is never written to IndexedDB, returned by an API route, or included in a CSV.
+The browser only receives configured/not-configured health responses. API keys are never written to IndexedDB, returned by an API route, or included in an export.
 
 Start the development server:
 
@@ -69,6 +70,11 @@ Trial arguments are capped at 50 candidates, 20 results, and concurrency 5.
 
 Canadian location is a permanent binary gate. A candidate without verified Canadian location evidence is rejected before scoring. Candidates that pass receive a weighted score for product fit, affordability, inventory, seller priority, contactability, and online presence, less unwanted-category penalties. Positive weights must total exactly 100 before a run can start.
 
+The GPT-5 Nano assistant translates plain-language requests into validated
+categories, metals, exclusions, run limits, and optional priorities. It cannot
+start a run or make the final lead decision. Scoring and hard gates remain
+deterministic application code.
+
 The budget-safe default run uses a 41-point qualification threshold, targets 5
 accepted sellers, researches no more than 20 candidates, and uses one concurrent research call. At current You.com
 standard Research pricing, that is approximately $1.05 USD at the maximum
@@ -101,4 +107,5 @@ npm run build
 npm run start
 ```
 
-Configure `YDC_API_KEY` in the deployment environment. Do not expose it through a `NEXT_PUBLIC_` variable.
+Configure `YDC_API_KEY` and `OPENAI_API_KEY` in the deployment environment. Do
+not expose either through a `NEXT_PUBLIC_` variable.

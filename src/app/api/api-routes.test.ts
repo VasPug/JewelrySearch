@@ -25,12 +25,17 @@ afterEach(() => {
 describe("research API routes", () => {
   it("reports configuration without revealing the API key", async () => {
     vi.stubEnv("YDC_API_KEY", "YDC_API_KEY-should-never-leak");
+    vi.stubEnv("OPENAI_API_KEY", "OPENAI_API_KEY-should-never-leak");
     const response = await health();
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toBe('{"configured":true}');
+    expect(JSON.parse(body)).toEqual({
+      configured: true,
+      assistantConfigured: true,
+    });
     expect(body).not.toContain("YDC_API_KEY-should-never-leak");
+    expect(body).not.toContain("OPENAI_API_KEY-should-never-leak");
   });
 
   it("validates discovery input and returns provider candidates", async () => {

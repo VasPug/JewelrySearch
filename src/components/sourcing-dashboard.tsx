@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ImportedLead } from "@/domain/imported-leads";
-import type { DiscoveryCandidate, RunPreferences, RunRecord } from "@/domain/types";
+import type { CriteriaResponse } from "@/ai/criteria";
+import type {
+  CriteriaChatMessage,
+  DiscoveryCandidate,
+  RunPreferences,
+  RunRecord,
+} from "@/domain/types";
 import { reviewImportedLeads, runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardTabs } from "./dashboard-tabs";
+import { CriteriaAssistant } from "./criteria-assistant";
 import { ExistingLeadsPanel } from "./existing-leads-panel";
 import {
   freshDefaultPreferences,
@@ -20,15 +27,18 @@ import { RunProgress } from "./run-progress";
 
 const RECENT_PREFERENCES_ID = "most-recent-valid-v3";
 const EXISTING_LEADS_SETTINGS_ID = "existing-leads-v1";
+const CRITERIA_CHAT_SETTINGS_ID = "criteria-chat-v1";
 
 export function SourcingDashboard() {
   const [preferences, setPreferences] = useState<RunPreferences>(freshDefaultPreferences);
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
+  const [assistantConfigured, setAssistantConfigured] = useState(false);
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [currentRun, setCurrentRun] = useState<RunRecord | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [importedLeads, setImportedLeads] = useState<ImportedLead[]>([]);
   const [instructions, setInstructions] = useState("");
+  const [criteriaMessages, setCriteriaMessages] = useState<CriteriaChatMessage[]>([]);
   const runController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -37,25 +47,40 @@ export function SourcingDashboard() {
     async function hydrateDashboard() {
       const healthPromise = fetch("/api/health")
         .then(async (response) =>
-          response.ok ? ((await response.json()) as { configured: boolean }).configured : false,
+          response.ok
+            ? ((await response.json()) as {
+                configured: boolean;
+                assistantConfigured?: boolean;
+              })
+            : { configured: false, assistantConfigured: false },
         )
-        .catch(() => false);
+        .catch(() => ({ configured: false, assistantConfigured: false }));
 
-      const [configured, storedPreferences, savedRuns, savedImportedLeads, savedSettings] = await Promise.all([
+      const [
+        health,
+        storedPreferences,
+        savedRuns,
+        savedImportedLeads,
+        savedSettings,
+        savedCriteriaChat,
+      ] = await Promise.all([
         healthPromise,
         dashboardDb.preferences.get(RECENT_PREFERENCES_ID).catch(() => undefined),
         dashboardDb.runs.orderBy("startedAt").reverse().toArray().catch(() => []),
         dashboardDb.importedLeads.toArray().catch(() => []),
         dashboardDb.workspaceSettings.get(EXISTING_LEADS_SETTINGS_ID).catch(() => undefined),
+        dashboardDb.workspaceSettings.get(CRITERIA_CHAT_SETTINGS_ID).catch(() => undefined),
       ]);
 
       if (!active) return;
-      setApiConfigured(configured);
+      setApiConfigured(health.configured);
+      setAssistantConfigured(Boolean(health.assistantConfigured));
       if (storedPreferences) setPreferences(clonePreferences(storedPreferences.preferences));
       setRuns(savedRuns);
       setCurrentRun(savedRuns.find((run) => !run.completedAt) ?? savedRuns[0] ?? null);
       setImportedLeads(savedImportedLeads);
       setInstructions(savedSettings?.instructions ?? "");
+      setCriteriaMessages(savedCriteriaChat?.criteriaMessages ?? []);
       void rememberRejectedCandidates(savedRuns).catch(() => undefined);
     }
 
@@ -140,6 +165,20 @@ export function SourcingDashboard() {
     });
   }, []);
 
+  const updateCriteriaMessages = useCallback((messages: CriteriaChatMessage[]) => {
+    setCriteriaMessages(messages);
+    void dashboardDb.workspaceSettings.put({
+      id: CRITERIA_CHAT_SETTINGS_ID,
+      criteriaMessages: messages.slice(-12),
+      updatedAt: new Date().toISOString(),
+    });
+  }, []);
+
+  const applyAssistantCriteria = useCallback((response: CriteriaResponse) => {
+    updatePreferences(clonePreferences(response.preferences));
+    updateInstructions(response.instructions);
+  }, [updateInstructions, updatePreferences]);
+
   const reviewLeads = useCallback(async () => {
     if (isRunning || !apiConfigured || !isValidPreferences(preferences) || importedLeads.length === 0) return;
     const candidates: DiscoveryCandidate[] = importedLeads
@@ -194,6 +233,21 @@ export function SourcingDashboard() {
         searchContent={
           <div className="workspace">
             <div className="config-stack">
+              <CriteriaAssistant
+                apiAvailable={assistantConfigured}
+                feedback={importedLeads
+                  .filter((lead) => Boolean(lead.feedbackStatus))
+                  .map((lead) => ({
+                    companyName: lead.companyName,
+                    status: lead.feedbackStatus as "good" | "not_fit" | "already_known",
+                    notes: lead.feedbackNotes,
+                  }))}
+                instructions={instructions}
+                messages={criteriaMessages}
+                onApply={applyAssistantCriteria}
+                onMessagesChange={updateCriteriaMessages}
+                preferences={preferences}
+              />
               <ExistingLeadsPanel
                 apiAvailable={apiConfigured === true}
                 instructions={instructions}

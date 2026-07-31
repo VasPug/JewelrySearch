@@ -95,4 +95,32 @@ describe("CriteriaAssistant", () => {
       screen.getByPlaceholderText(/add OPENAI_API_KEY to enable the assistant/i),
     ).toBeDisabled();
   });
+
+  it("keeps the qualification equation visible without requiring manual setup", () => {
+    render(
+      <CriteriaAssistant
+        apiAvailable
+        feedback={[]}
+        instructions=""
+        messages={[]}
+        onApply={vi.fn()}
+        onMessagesChange={vi.fn()}
+        preferences={{
+          ...DEFAULT_PREFERENCES,
+          weights: { ...DEFAULT_PREFERENCES.weights },
+          acceptedMetals: [...DEFAULT_PREFERENCES.acceptedMetals],
+          acceptedCategories: [...DEFAULT_PREFERENCES.acceptedCategories],
+          avoidTerms: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/canada × weighted fit/i)).toHaveTextContent(
+      `Canada × weighted fit − penalties · ${DEFAULT_PREFERENCES.threshold}+ qualifies`,
+    );
+    fireEvent.click(screen.getByText("Weights"));
+    expect(screen.getByText("max(0, weighted fit − penalties)")).toBeVisible();
+    expect(screen.getByText("30")).toBeVisible();
+    expect(screen.getByText(/aurum proposes the weights/i)).toBeVisible();
+  });
 });

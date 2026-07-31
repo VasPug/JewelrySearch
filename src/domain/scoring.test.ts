@@ -143,9 +143,6 @@ describe("scoreCandidate hard gates", () => {
     "10 karat gold",
     "14kt gold",
     "14 karat gold",
-    "gold filled",
-    "gold plated",
-    "vermeil",
   ])("recognizes the material synonym %s", (metal) => {
     const result = scoreCandidate(
       candidate({
@@ -158,6 +155,22 @@ describe("scoreCandidate hard gates", () => {
     expect(result.reasons).not.toContain("No accepted jewelry material is verified");
     expect(result.breakdown.productFit).toBeGreaterThan(0);
   });
+
+  it.each(["gold filled", "gold plated", "vermeil"])(
+    "does not treat %s as solid gold by default",
+    (metal) => {
+      const result = scoreCandidate(
+        candidate({
+          acceptedMetals: [evidence(metal)],
+          catalogSamples: Array.from({ length: 10 }, () => listing({ metal })),
+        }),
+        DEFAULT_PREFERENCES,
+      );
+
+      expect(result.reasons).toContain("No accepted jewelry material is verified");
+      expect(result.breakdown.productFit).toBe(0);
+    },
+  );
 
   it("recognizes Canadian jewellery spelling and singular product categories", () => {
     const result = scoreCandidate(
@@ -359,7 +372,7 @@ describe("scoreCandidate deterministic components", () => {
           ),
         ),
       }),
-      DEFAULT_PREFERENCES,
+      { ...DEFAULT_PREFERENCES, avoidTerms: [] },
     );
 
     expect(result.breakdown.unwantedPenalty).toBe(expected);

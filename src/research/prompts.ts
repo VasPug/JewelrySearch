@@ -2,15 +2,15 @@ import type { DiscoveryCandidate, RunPreferences } from "@/domain/types";
 
 export const DISCOVERY_QUERY_FAMILIES = [
   "Canadian jewelry manufacturer wholesale sterling silver 925 10k 14k chains -blog -guide",
-  "Canadian jewelry wholesaler ready to ship sterling silver gold inventory -blog -directory",
-  "Canadian independent jewelry retailer sterling silver 925 10k 14k -engagement",
-  "Canadian jewelry trade show exhibitor wholesaler manufacturer",
-  "site:etsy.com/shop Canada sterling silver gold jewelry ready to ship",
-  "site:instagram.com Canadian jewelry wholesaler sterling silver gold",
-  "site:facebook.com Canadian jewelry wholesaler sterling silver gold",
+  "Canadian chain wholesaler ready to ship sterling silver 10k 14k gold inventory -blog -directory",
+  "Canadian independent jewelry retailer sterling silver 925 10k 14k chains -engagement -pendant -watch",
+  "Canadian jewelry chain trade show exhibitor wholesaler manufacturer",
+  "site:etsy.com/shop Canada sterling silver gold chains ready to ship -handmade -personalized",
+  "site:instagram.com Canadian jewelry chain wholesaler sterling silver gold",
+  "site:facebook.com Canadian jewelry chain wholesaler sterling silver gold",
   "Canadian jewelry supplier Cuban Figaro paperclip chains wholesale",
-  "Canadian gold filled gold plated jewelry wholesaler",
-  "Canadian 925 silver jewelry distributor",
+  "Canadian 10k 14k gold chain wholesaler manufacturer in stock",
+  "Canadian 925 silver chain distributor wholesale",
 ] as const;
 
 export function discoveryQueries(location = "Canada"): string[] {
@@ -30,7 +30,7 @@ export function candidateResearchPrompt(
     "First inspect the official Contact, About, Store Locator, Shipping, and Terms pages for a physical Canadian headquarters, store, office, warehouse, or manufacturing address. If the official site has no address, require two independent credible sources that agree.",
     "Reject shipping-to-Canada, CAD pricing, or a .ca domain as location proof by themselves. Identify seller type and sample up to 20 listings.",
     `Prioritize these categories: ${preferences.acceptedCategories.join(", ") || "jewelry"}.`,
-    `Prioritize these metals and equivalent spellings: ${preferences.acceptedMetals.join(", ") || "unknown"}, sterling silver, .925 silver, 925 silver, 10kt, 10 karat, 14kt, 14 karat, gold filled, gold plated, and vermeil.`,
+    `Prioritize only these metals and their equivalent spellings: ${preferences.acceptedMetals.join(", ") || "unknown"}, sterling silver, .925 silver, 925 silver, 10kt, 10 karat, 14kt, and 14 karat. Do not treat gold-filled, gold-plated, or vermeil as solid 10K or 14K gold.`,
     preferences.avoidTerms?.length
       ? `The user has hard-excluded these terms: ${preferences.avoidTerms.join(", ")}. Collect enough evidence to determine whether any applies.`
       : "",

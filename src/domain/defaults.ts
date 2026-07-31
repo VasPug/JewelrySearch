@@ -13,21 +13,27 @@ const defaultMetals: string[] = Object.freeze([
   "0.925 sterling silver",
   "10K gold",
   "14K gold",
-  "gold-filled",
-  "gold-plated",
 ]) as string[];
 
 const defaultCategories: string[] = Object.freeze([
-  "jewelry",
   "chains",
-  "bracelets",
-  "earrings",
-  "rings",
-  "anklets",
+  "Cuban chains",
+  "paperclip chains",
+  "regular chains",
 ]) as string[];
 
-const defaultAvoidTerms: string[] = [];
-Object.freeze(defaultAvoidTerms);
+const defaultAvoidTerms: string[] = Object.freeze([
+  "diamond",
+  "pendant",
+  "watch",
+  "vintage",
+  "raw gemstone",
+  "handmade",
+  "handcrafted",
+  "made to order",
+  "personalized",
+  "engagement",
+]) as string[];
 
 export const DEFAULT_PREFERENCES: Readonly<RunPreferences> = Object.freeze({
   threshold: 41,

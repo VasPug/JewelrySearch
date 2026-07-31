@@ -26,7 +26,7 @@ import {
 import { RunHistory } from "./run-history";
 import { RunProgress } from "./run-progress";
 
-const RECENT_PREFERENCES_ID = "most-recent-valid-v3";
+const RECENT_PREFERENCES_ID = "most-recent-valid-v4";
 const EXISTING_LEADS_SETTINGS_ID = "existing-leads-v1";
 const CRITERIA_CHAT_SETTINGS_ID = "criteria-chat-v1";
 

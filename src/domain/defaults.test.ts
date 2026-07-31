@@ -26,21 +26,29 @@ describe("DEFAULT_PREFERENCES", () => {
     });
   });
 
-  it("uses the supported materials and ready-to-ship jewelry categories", () => {
+  it("defaults to the confirmed chain-only sourcing brief", () => {
     expect(DEFAULT_PREFERENCES.acceptedMetals).toEqual([
       "0.925 sterling silver",
       "10K gold",
       "14K gold",
-      "gold-filled",
-      "gold-plated",
     ]);
     expect(DEFAULT_PREFERENCES.acceptedCategories).toEqual([
-      "jewelry",
       "chains",
-      "bracelets",
-      "earrings",
-      "rings",
-      "anklets",
+      "Cuban chains",
+      "paperclip chains",
+      "regular chains",
+    ]);
+    expect(DEFAULT_PREFERENCES.avoidTerms).toEqual([
+      "diamond",
+      "pendant",
+      "watch",
+      "vintage",
+      "raw gemstone",
+      "handmade",
+      "handcrafted",
+      "made to order",
+      "personalized",
+      "engagement",
     ]);
   });
 
@@ -49,5 +57,6 @@ describe("DEFAULT_PREFERENCES", () => {
     expect(Object.isFrozen(DEFAULT_PREFERENCES.weights)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.acceptedMetals)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.acceptedCategories)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.avoidTerms)).toBe(true);
   });
 });

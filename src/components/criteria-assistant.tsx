@@ -3,7 +3,7 @@
 import { type FormEvent, useState } from "react";
 
 import type { CriteriaResponse } from "@/ai/criteria";
-import type { CriteriaChatMessage, RunPreferences } from "@/domain/types";
+import type { CriteriaChatMessage, RunPreferences, ScoreWeights } from "@/domain/types";
 
 type FeedbackExample = {
   companyName: string;
@@ -30,6 +30,15 @@ const STARTER_PROMPTS = [
   "Learn from my reviewed leads.",
   "Find 10 strong leads and keep the search strict.",
 ];
+
+const SCORE_LABELS: Record<keyof ScoreWeights, string> = {
+  productFit: "Product",
+  affordability: "Price",
+  inventory: "Inventory",
+  sellerPriority: "Seller",
+  contactability: "Contact",
+  presence: "Presence",
+};
 
 export function CriteriaAssistant({
   apiAvailable,
@@ -149,7 +158,9 @@ export function CriteriaAssistant({
         />
       </div>
 
-      {messages.length === 0 ? (
+      <ScoringPreview preferences={preferences} />
+
+      {messages.length === 0 && apiAvailable ? (
         <div className="starter-prompts" aria-label="Suggested prompts">
           {STARTER_PROMPTS.map((prompt) => (
             <button
@@ -219,6 +230,41 @@ export function CriteriaAssistant({
         <p className="assistant-footnote">You make the final call on every recommendation.</p>
       )}
     </section>
+  );
+}
+
+function ScoringPreview({ preferences }: { preferences: RunPreferences }) {
+  const entries = Object.entries(preferences.weights) as [keyof ScoreWeights, number][];
+
+  return (
+    <details className="assistant-scoring">
+      <summary>
+        <span>
+          <small>Transparent scoring</small>
+          <strong>Canada × weighted fit − penalties · {preferences.threshold}+ qualifies</strong>
+        </span>
+        <span className="scoring-summary-action">Weights</span>
+      </summary>
+      <div className="assistant-scoring-body">
+        <p className="assistant-formula">
+          <b>Canada verified</b>
+          <span aria-hidden="true">×</span>
+          <span>max(0, weighted fit − penalties)</span>
+        </p>
+        <dl className="assistant-weight-list" aria-label="Current score weights">
+          {entries.map(([key, value]) => (
+            <div key={key}>
+              <dt>{SCORE_LABELS[key]}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="assistant-scoring-note">
+          Aurum proposes the weights from your brief and review history. You can inspect or
+          override them in Search settings.
+        </p>
+      </div>
+    </details>
   );
 }
 

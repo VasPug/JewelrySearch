@@ -86,7 +86,7 @@ export function RunProgress({
         aria-valuemin={0}
         aria-valuenow={run.qualifiedCount}
       >
-        <span style={{ width: `${acceptedPercent}%` }} />
+        <span style={{ transform: `scaleX(${acceptedPercent / 100})` }} />
       </div>
 
       <ol className="stage-list" aria-label="Research stages">

@@ -55,7 +55,7 @@ describe("CriteriaAssistant", () => {
       screen.getByRole("textbox", { name: /describe or change the lead criteria/i }),
       { target: { value: "Exclude retailers and prioritize wholesalers" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(response));
     expect(onMessagesChange).toHaveBeenCalledTimes(2);

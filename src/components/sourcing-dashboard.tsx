@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImportedLead } from "@/domain/imported-leads";
 import type { CriteriaResponse } from "@/ai/criteria";
 import type {
+  CandidateMemory,
   CriteriaChatMessage,
   DiscoveryCandidate,
   RunPreferences,
@@ -14,9 +15,9 @@ import { reviewImportedLeads, runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
 import { DashboardHeader } from "./dashboard-header";
-import { DashboardTabs } from "./dashboard-tabs";
 import { CriteriaAssistant } from "./criteria-assistant";
 import { ExistingLeadsPanel } from "./existing-leads-panel";
+import { LeadReviewWorkspace, type LeadDecision } from "./lead-review-workspace";
 import {
   freshDefaultPreferences,
   isValidPreferences,
@@ -39,6 +40,7 @@ export function SourcingDashboard() {
   const [importedLeads, setImportedLeads] = useState<ImportedLead[]>([]);
   const [instructions, setInstructions] = useState("");
   const [criteriaMessages, setCriteriaMessages] = useState<CriteriaChatMessage[]>([]);
+  const [candidateMemory, setCandidateMemory] = useState<CandidateMemory[]>([]);
   const runController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export function SourcingDashboard() {
         savedImportedLeads,
         savedSettings,
         savedCriteriaChat,
+        savedCandidateMemory,
       ] = await Promise.all([
         healthPromise,
         dashboardDb.preferences.get(RECENT_PREFERENCES_ID).catch(() => undefined),
@@ -70,6 +73,7 @@ export function SourcingDashboard() {
         dashboardDb.importedLeads.toArray().catch(() => []),
         dashboardDb.workspaceSettings.get(EXISTING_LEADS_SETTINGS_ID).catch(() => undefined),
         dashboardDb.workspaceSettings.get(CRITERIA_CHAT_SETTINGS_ID).catch(() => undefined),
+        dashboardDb.candidateMemory.toArray().catch(() => []),
       ]);
 
       if (!active) return;
@@ -81,6 +85,7 @@ export function SourcingDashboard() {
       setImportedLeads(savedImportedLeads);
       setInstructions(savedSettings?.instructions ?? "");
       setCriteriaMessages(savedCriteriaChat?.criteriaMessages ?? []);
+      setCandidateMemory(savedCandidateMemory);
       void rememberRejectedCandidates(savedRuns).catch(() => undefined);
     }
 
@@ -215,50 +220,105 @@ export function SourcingDashboard() {
     runController.current?.abort();
   }, []);
 
+  const recordLeadDecision = useCallback((lead: {
+    id: string;
+    companyName: string;
+    websiteUrl: string | null;
+    decision: LeadDecision;
+  }) => {
+    const record: CandidateMemory = {
+      id: lead.id,
+      companyName: lead.companyName,
+      websiteUrl: lead.websiteUrl,
+      outcome: lead.decision,
+      reason: `Human review: ${lead.decision.replace("_", " ")}`,
+      runId: currentRun?.id ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+    setCandidateMemory((current) => [
+      ...current.filter((item) => item.id !== record.id),
+      record,
+    ]);
+    void dashboardDb.candidateMemory.put(record);
+  }, [currentRun?.id]);
+
   async function finishRun(completed: RunRecord) {
     setCurrentRun(completed);
-    setRuns(await dashboardDb.runs.orderBy("startedAt").reverse().toArray());
+    await rememberRejectedCandidates([completed]);
+    const [savedRuns, savedMemory] = await Promise.all([
+      dashboardDb.runs.orderBy("startedAt").reverse().toArray(),
+      dashboardDb.candidateMemory.toArray(),
+    ]);
+    setRuns(savedRuns);
+    setCandidateMemory(savedMemory);
   }
 
   return (
-    <main className="dashboard" id="top">
+    <main className="dashboard app-dashboard" id="top">
       <DashboardHeader apiConfigured={apiConfigured} runCount={runs.length} />
 
-      <section className="utility-intro" aria-labelledby="page-title">
-        <h1 id="page-title">Seller search</h1>
-        <p>Canadian jewelry leads · You.com · XLSX export</p>
+      <section className="research-workspace" aria-label="Lead sourcing workspace">
+        <aside className="conversation-column">
+          <CriteriaAssistant
+            apiAvailable={assistantConfigured}
+            feedback={criteriaFeedback(importedLeads, candidateMemory)}
+            instructions={instructions}
+            isRunning={isRunning}
+            messages={criteriaMessages}
+            onApply={applyAssistantCriteria}
+            onCancel={cancelRun}
+            onMessagesChange={updateCriteriaMessages}
+            onStart={() => void startRun()}
+            preferences={preferences}
+            researchAvailable={apiConfigured === true}
+          />
+
+          <details className="live-run-drawer" open={isRunning}>
+            <summary>
+              <span>
+                <strong>{isRunning ? "Research in progress" : "Run status"}</strong>
+                <small>
+                  {currentRun
+                    ? `${currentRun.qualifiedCount} fit · ${currentRun.researchedCount} researched`
+                    : "No research run yet"}
+                </small>
+              </span>
+              <span aria-hidden="true">⌄</span>
+            </summary>
+            <RunProgress isRunning={isRunning} onCancel={cancelRun} run={currentRun} />
+          </details>
+        </aside>
+
+        <LeadReviewWorkspace
+          currentRun={currentRun}
+          importedLeads={importedLeads}
+          memory={candidateMemory}
+          onDecision={recordLeadDecision}
+        />
       </section>
 
-      <DashboardTabs
-        searchContent={
-          <div className="workspace">
-            <div className="config-stack">
-              <CriteriaAssistant
-                apiAvailable={assistantConfigured}
-                feedback={importedLeads
-                  .filter((lead) => Boolean(lead.feedbackStatus))
-                  .map((lead) => ({
-                    companyName: lead.companyName,
-                    status: lead.feedbackStatus as "good" | "not_fit" | "already_known",
-                    notes: lead.feedbackNotes,
-                  }))}
-                instructions={instructions}
-                messages={criteriaMessages}
-                onApply={applyAssistantCriteria}
-                onMessagesChange={updateCriteriaMessages}
-                preferences={preferences}
-              />
-              <ExistingLeadsPanel
-                apiAvailable={apiConfigured === true}
-                instructions={instructions}
-                isRunning={isRunning}
-                leadCount={importedLeads.length}
-                reviewableCount={importedLeads.filter((lead) => !lead.feedbackStatus).length}
-                onClear={clearImportedLeads}
-                onImport={importLeads}
-                onInstructionsChange={updateInstructions}
-                onReview={() => void reviewLeads()}
-              />
+      <section className="settings-dock" aria-label="Secondary controls">
+        <details>
+          <summary>
+            <span>
+              <strong>Search settings & existing leads</strong>
+              <small>Optional controls—Aurum chooses sensible defaults</small>
+            </span>
+            <span aria-hidden="true">⌄</span>
+          </summary>
+          <div className="settings-dock-grid">
+            <ExistingLeadsPanel
+              apiAvailable={apiConfigured === true}
+              instructions={instructions}
+              isRunning={isRunning}
+              leadCount={importedLeads.length}
+              reviewableCount={importedLeads.filter((lead) => !lead.feedbackStatus).length}
+              onClear={clearImportedLeads}
+              onImport={importLeads}
+              onInstructionsChange={updateInstructions}
+              onReview={() => void reviewLeads()}
+            />
+            <div className="settings-run-config">
               <RunConfig
                 apiAvailable={apiConfigured === true}
                 isRunning={isRunning}
@@ -268,14 +328,19 @@ export function SourcingDashboard() {
                 preferences={preferences}
               />
             </div>
-            <aside className="sidebar-stack" aria-label="Run status and history">
-              <RunProgress isRunning={isRunning} onCancel={cancelRun} run={currentRun} />
-              <RunHistory runs={runs} />
-            </aside>
           </div>
-        }
-      />
-
+        </details>
+        <details>
+          <summary>
+            <span>
+              <strong>Run history</strong>
+              <small>{runs.length} locally saved run{runs.length === 1 ? "" : "s"}</small>
+            </span>
+            <span aria-hidden="true">⌄</span>
+          </summary>
+          <RunHistory runs={runs} />
+        </details>
+      </section>
     </main>
   );
 }
@@ -292,7 +357,16 @@ async function rememberRejectedCandidates(runs: RunRecord[]): Promise<void> {
       updatedAt: run.completedAt ?? run.startedAt,
     })),
   );
-  if (candidates.length) await dashboardDb.candidateMemory.bulkPut(candidates);
+  if (!candidates.length) return;
+  const existing = await dashboardDb.candidateMemory.bulkGet(candidates.map((item) => item.id));
+  const humanReviewed = new Set(
+    existing
+      .filter((item) => item && ["good", "maybe", "not_fit"].includes(item.outcome))
+      .map((item) => item!.id),
+  );
+  await dashboardDb.candidateMemory.bulkPut(
+    candidates.filter((item) => !humanReviewed.has(item.id)),
+  );
 }
 
 function feedbackAwareInstructions(instructions: string, leads: ImportedLead[]): string {
@@ -304,6 +378,38 @@ function feedbackAwareInstructions(instructions: string, leads: ImportedLead[]):
     instructions.trim(),
     goodExamples.length ? `Good fit examples: ${goodExamples.join(", ")}` : "",
   ].filter(Boolean).join(". ").slice(0, 240);
+}
+
+function criteriaFeedback(
+  leads: ImportedLead[],
+  memory: CandidateMemory[],
+): {
+  companyName: string;
+  status: "good" | "maybe" | "not_fit" | "already_known";
+  notes: string;
+}[] {
+  const feedback = new Map<string, {
+    companyName: string;
+    status: "good" | "maybe" | "not_fit" | "already_known";
+    notes: string;
+  }>();
+  for (const lead of leads) {
+    if (!lead.feedbackStatus) continue;
+    feedback.set(lead.id, {
+      companyName: lead.companyName,
+      status: lead.feedbackStatus,
+      notes: lead.feedbackNotes,
+    });
+  }
+  for (const item of memory) {
+    if (!["good", "maybe", "not_fit", "already_known"].includes(item.outcome)) continue;
+    feedback.set(item.id, {
+      companyName: item.companyName,
+      status: item.outcome as "good" | "maybe" | "not_fit" | "already_known",
+      notes: item.reason,
+    });
+  }
+  return [...feedback.values()].slice(-20);
 }
 
 function clonePreferences(preferences: RunPreferences): RunPreferences {

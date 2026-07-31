@@ -34,7 +34,7 @@ export const criteriaRequestSchema = z.object({
   instructions: z.string().max(240),
   feedback: z.array(z.object({
     companyName: z.string().trim().min(1).max(120),
-    status: z.enum(["good", "not_fit", "already_known"]),
+    status: z.enum(["good", "maybe", "not_fit", "already_known"]),
     notes: z.string().trim().max(240),
   })).max(20).default([]),
 });

@@ -7,7 +7,7 @@ import type { CriteriaChatMessage, RunPreferences } from "@/domain/types";
 
 type FeedbackExample = {
   companyName: string;
-  status: "good" | "not_fit" | "already_known";
+  status: "good" | "maybe" | "not_fit" | "already_known";
   notes: string;
 };
 
@@ -15,10 +15,14 @@ type CriteriaAssistantProps = {
   apiAvailable: boolean;
   feedback: FeedbackExample[];
   instructions: string;
+  isRunning?: boolean;
   messages: CriteriaChatMessage[];
   preferences: RunPreferences;
+  researchAvailable?: boolean;
   onApply: (response: CriteriaResponse) => void;
+  onCancel?: () => void;
   onMessagesChange: (messages: CriteriaChatMessage[]) => void;
+  onStart?: () => void;
 };
 
 const STARTER_PROMPTS = [
@@ -31,10 +35,14 @@ export function CriteriaAssistant({
   apiAvailable,
   feedback,
   instructions,
+  isRunning = false,
   messages,
   preferences,
+  researchAvailable = false,
   onApply,
+  onCancel,
   onMessagesChange,
+  onStart,
 }: CriteriaAssistantProps) {
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
@@ -93,9 +101,11 @@ export function CriteriaAssistant({
     <section className="panel criteria-assistant" aria-labelledby="criteria-assistant-heading">
       <div className="criteria-assistant-heading">
         <div>
-          <p className="eyebrow">GPT-5 Nano assistant</p>
-          <h2 id="criteria-assistant-heading">Describe a good lead</h2>
-          <p>Use plain language. I’ll update the search rules; you keep the final decision.</p>
+          <span className="assistant-avatar" aria-hidden="true">A</span>
+          <span>
+            <h2 id="criteria-assistant-heading">Aurum assistant</h2>
+            <p>GPT-5.6 Luna · remembers your feedback</p>
+          </span>
         </div>
         <span className={`assistant-status ${apiAvailable ? "is-ready" : ""}`}>
           {apiAvailable ? "Ready" : "API key needed"}
@@ -104,7 +114,8 @@ export function CriteriaAssistant({
 
       <div className="chat-thread" aria-live="polite">
         <div className="chat-message is-assistant">
-          Tell me who you want to find, what matters most, and what should never be included.
+          Tell me what a great lead looks like—and what I should avoid. I’ll turn that into a
+          search, review every result, and show you the evidence.
         </div>
         {messages.map((message) => (
           <div
@@ -170,17 +181,43 @@ export function CriteriaAssistant({
               ? "Example: Exclude retailers and prioritize Canadian findings wholesalers"
               : "Add OPENAI_API_KEY to enable the assistant"
           }
-          rows={3}
+          rows={2}
           value={draft}
         />
         <button disabled={!apiAvailable || !draft.trim() || isThinking} type="submit">
-          Apply
+          Send
         </button>
       </form>
       {error ? <p className="field-error" role="alert">{error}</p> : null}
-      <p className="assistant-footnote">
-        The assistant edits saved criteria only. It does not start research or make the final lead decision.
-      </p>
+      <div className="assistant-run-action">
+        <span>
+          <strong>{preferences.targetLeads} strong leads</strong>
+          <small>Up to {preferences.maxCandidates} sites researched</small>
+        </span>
+        {isRunning ? (
+          <button className="cancel-run-button" onClick={onCancel} type="button">
+            Stop search
+          </button>
+        ) : (
+          <button
+            className="start-search-button"
+            disabled={!researchAvailable}
+            onClick={onStart}
+            type="button"
+          >
+            Find leads <span aria-hidden="true">→</span>
+          </button>
+        )}
+      </div>
+      {!researchAvailable ? (
+        <p className="assistant-footnote">Add YDC_API_KEY to enable web research.</p>
+      ) : !apiAvailable ? (
+        <p className="assistant-footnote">
+          Web research is ready. Add OPENAI_API_KEY to edit criteria through chat.
+        </p>
+      ) : (
+        <p className="assistant-footnote">You make the final call on every recommendation.</p>
+      )}
     </section>
   );
 }

@@ -9,7 +9,7 @@ export type ImportedLead = {
   importedAt: string;
 };
 
-export type FeedbackStatus = "" | "good" | "not_fit" | "already_known";
+export type FeedbackStatus = "" | "good" | "maybe" | "not_fit" | "already_known";
 
 const COMPANY_HEADERS = ["companyname", "company", "businessname", "name"];
 const WEBSITE_HEADERS = ["websiteurl", "websitelink", "website", "url"];
@@ -17,7 +17,13 @@ const PHONE_HEADERS = ["phonenumber", "phone", "telephone"];
 const INSTAGRAM_HEADERS = ["instagramurl", "instagram", "instagramlink"];
 const FEEDBACK_STATUS_HEADERS = ["feedbackstatus", "reviewstatus", "fitstatus"];
 const FEEDBACK_NOTES_HEADERS = ["feedbacknotes", "reviewnotes", "gutchecknotes", "notes"];
-const FEEDBACK_STATUSES = new Set<FeedbackStatus>(["", "good", "not_fit", "already_known"]);
+const FEEDBACK_STATUSES = new Set<FeedbackStatus>([
+  "",
+  "good",
+  "maybe",
+  "not_fit",
+  "already_known",
+]);
 
 export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
   const rows = parseCsv(csv);
@@ -65,7 +71,7 @@ export function parseImportedLeadsCsv(csv: string): ImportedLead[] {
 function normalizeFeedbackStatus(value: string): FeedbackStatus {
   const normalized = value.trim().toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
   if (!FEEDBACK_STATUSES.has(normalized as FeedbackStatus)) {
-    throw new Error("Feedback Status must be good, not_fit, already_known, or blank");
+    throw new Error("Feedback Status must be good, maybe, not_fit, already_known, or blank");
   }
   return normalized as FeedbackStatus;
 }

@@ -38,9 +38,9 @@ describe("parseImportedLeadsCsv", () => {
   it("rejects unsupported explicit feedback statuses", () => {
     expect(() =>
       parseImportedLeadsCsv(
-        "Company Name,Feedback Status\nNorth Star Jewelry,maybe",
+        "Company Name,Feedback Status\nNorth Star Jewelry,uncertain",
       ),
-    ).toThrow(/good, not_fit, already_known, or blank/i);
+    ).toThrow(/good, maybe, not_fit, already_known, or blank/i);
   });
 
   it("rejects a file without company or website columns", () => {

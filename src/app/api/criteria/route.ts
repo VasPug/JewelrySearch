@@ -33,9 +33,9 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-5-nano",
+        model: "gpt-5.6-luna",
         store: false,
-        reasoning: { effort: "minimal" },
+        reasoning: { effort: "low" },
         max_output_tokens: 2500,
         instructions: CRITERIA_SYSTEM_PROMPT,
         input: JSON.stringify(parsed.data),

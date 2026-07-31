@@ -1,6 +1,6 @@
 # Aurum Sourcing
 
-An evidence-backed dashboard for discovering and qualifying Canadian jewelry sellers. Aurum uses You.com for research, applies deterministic scoring in application code, retains source URLs for every researched lead, and exports Excel workbooks with separate Accepted and Rejected tabs.
+An evidence-backed workspace for discovering and qualifying Canadian jewelry sellers. Aurum uses You.com for research, GPT-5.6 Luna for conversational search criteria, applies deterministic scoring in application code, retains source URLs for every researched lead, and exports reviewable CSV and Excel results.
 
 ## Local setup
 

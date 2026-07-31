@@ -56,7 +56,7 @@ export function ExistingLeadsPanel({
 
       <p>
         Upload prior leads once. New searches skip uploaded matches automatically. Optional columns:
-        Feedback Status (good, not_fit, already_known) and Feedback Notes.
+        Feedback Status (good, maybe, not_fit, already_known) and Feedback Notes.
       </p>
 
       <div className="existing-leads-controls">

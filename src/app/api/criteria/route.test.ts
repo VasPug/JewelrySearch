@@ -89,9 +89,9 @@ describe("criteria API route", () => {
       expect.objectContaining({ Authorization: expect.stringContaining("not-the-key") }),
     );
     expect(providerBody).toMatchObject({
-      model: "gpt-5-nano",
+      model: "gpt-5.6-luna",
       store: false,
-      reasoning: { effort: "minimal" },
+      reasoning: { effort: "low" },
       text: { format: { type: "json_schema", strict: true } },
     });
   });

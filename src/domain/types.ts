@@ -202,7 +202,14 @@ export type CandidateMemory = {
   id: string;
   companyName: string;
   websiteUrl: string | null;
-  outcome: "discovered" | "accepted" | "rejected" | "good" | "not_fit" | "already_known";
+  outcome:
+    | "discovered"
+    | "accepted"
+    | "rejected"
+    | "good"
+    | "maybe"
+    | "not_fit"
+    | "already_known";
   reason: string;
   runId: string | null;
   updatedAt: string;

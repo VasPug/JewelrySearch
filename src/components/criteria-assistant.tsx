@@ -1,9 +1,15 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import type { CriteriaResponse } from "@/ai/criteria";
-import type { CriteriaChatMessage, RunPreferences, ScoreWeights } from "@/domain/types";
+import type {
+  CriteriaChatMessage,
+  RunPreferences,
+  RunRecord,
+  RunStage,
+  ScoreWeights,
+} from "@/domain/types";
 
 type FeedbackExample = {
   companyName: string;
@@ -18,6 +24,7 @@ type CriteriaAssistantProps = {
   isRunning?: boolean;
   messages: CriteriaChatMessage[];
   preferences: RunPreferences;
+  run?: RunRecord | null;
   researchAvailable?: boolean;
   onApply: (response: CriteriaResponse) => void;
   onCancel?: () => void;
@@ -47,6 +54,7 @@ export function CriteriaAssistant({
   isRunning = false,
   messages,
   preferences,
+  run = null,
   researchAvailable = false,
   onApply,
   onCancel,
@@ -56,6 +64,14 @@ export function CriteriaAssistant({
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState("");
+  const [pendingSearch, setPendingSearch] = useState(false);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (thread) thread.scrollTop = thread.scrollHeight;
+  }, [isThinking, messages, pendingSearch]);
 
   async function submit(message: string) {
     const trimmed = message.trim();
@@ -63,9 +79,24 @@ export function CriteriaAssistant({
 
     const userMessage = chatMessage("user", trimmed);
     const nextMessages = [...messages, userMessage].slice(-12);
+    const searchRequested = requestsSearchConfirmation(trimmed);
     onMessagesChange(nextMessages);
     setDraft("");
     setError("");
+    setPendingSearch(false);
+
+    if (searchRequested && isStandaloneSearchCommand(trimmed)) {
+      if (isRunning) {
+        onMessagesChange([
+          ...nextMessages,
+          chatMessage("assistant", "A search is already running. Stop it before starting another."),
+        ].slice(-12));
+      } else {
+        setPendingSearch(true);
+      }
+      return;
+    }
+
     setIsThinking(true);
 
     try {
@@ -94,6 +125,7 @@ export function CriteriaAssistant({
       onMessagesChange(
         [...nextMessages, chatMessage("assistant", payload.assistantReply)].slice(-12),
       );
+      if (searchRequested && !isRunning) setPendingSearch(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The search assistant is unavailable.");
     } finally {
@@ -121,7 +153,12 @@ export function CriteriaAssistant({
         </span>
       </div>
 
-      <div className="chat-thread" aria-live="polite">
+      <div
+        aria-label="Conversation"
+        aria-live="polite"
+        className="chat-thread"
+        ref={threadRef}
+      >
         <div className="chat-message is-assistant">
           Tell me what a great lead looks like—and what I should avoid. I’ll turn that into a
           search, review every result, and show you the evidence.
@@ -134,31 +171,24 @@ export function CriteriaAssistant({
             {message.content}
           </div>
         ))}
+        {pendingSearch ? (
+          <SearchConfirmation
+            onDismiss={() => {
+              setPendingSearch(false);
+              composerRef.current?.focus();
+            }}
+            onStart={() => {
+              setPendingSearch(false);
+              onStart?.();
+            }}
+            preferences={preferences}
+            researchAvailable={researchAvailable}
+          />
+        ) : null}
         {isThinking ? (
           <div className="chat-message is-assistant is-thinking">Updating your criteria…</div>
         ) : null}
       </div>
-
-      <div className="criteria-readback" aria-label="Current search understanding">
-        <CriteriaReadback
-          items={["Verified Canadian location", ...preferences.acceptedCategories.slice(0, 3)]}
-          label="Must match"
-        />
-        <CriteriaReadback
-          items={[
-            ...preferences.acceptedMetals.slice(0, 3),
-            ...(instructions ? [instructions] : []),
-          ]}
-          label="Prefer"
-        />
-        <CriteriaReadback
-          empty="Nothing yet"
-          items={(preferences.avoidTerms ?? []).slice(0, 4)}
-          label="Avoid"
-        />
-      </div>
-
-      <ScoringPreview preferences={preferences} />
 
       {messages.length === 0 && apiAvailable ? (
         <div className="starter-prompts" aria-label="Suggested prompts">
@@ -174,6 +204,8 @@ export function CriteriaAssistant({
           ))}
         </div>
       ) : null}
+
+      <CurrentBrief instructions={instructions} preferences={preferences} />
 
       <form className="chat-composer" onSubmit={submitDraft}>
         <textarea
@@ -193,6 +225,7 @@ export function CriteriaAssistant({
               : "Add OPENAI_API_KEY to enable the assistant"
           }
           rows={2}
+          ref={composerRef}
           value={draft}
         />
         <button disabled={!apiAvailable || !draft.trim() || isThinking} type="submit">
@@ -202,8 +235,16 @@ export function CriteriaAssistant({
       {error ? <p className="field-error" role="alert">{error}</p> : null}
       <div className="assistant-run-action">
         <span>
-          <strong>{preferences.targetLeads} strong leads</strong>
-          <small>Up to {preferences.maxCandidates} sites researched</small>
+          <strong>
+            {isRunning ? runStageLabel(run?.stage) : `${preferences.targetLeads} strong leads`}
+          </strong>
+          <small>
+            {isRunning
+              ? run
+                ? `${run.qualifiedCount}/${run.preferences.targetLeads} fit · ${run.researchedCount} researched`
+                : "Preparing the research run"
+              : `Up to ${preferences.maxCandidates} sites researched`}
+          </small>
         </span>
         {isRunning ? (
           <button className="cancel-run-button" onClick={onCancel} type="button">
@@ -213,7 +254,10 @@ export function CriteriaAssistant({
           <button
             className="start-search-button"
             disabled={!researchAvailable}
-            onClick={onStart}
+            onClick={() => {
+              setPendingSearch(false);
+              onStart?.();
+            }}
             type="button"
           >
             Find leads <span aria-hidden="true">→</span>
@@ -230,6 +274,82 @@ export function CriteriaAssistant({
         <p className="assistant-footnote">You make the final call on every recommendation.</p>
       )}
     </section>
+  );
+}
+
+function SearchConfirmation({
+  onDismiss,
+  onStart,
+  preferences,
+  researchAvailable,
+}: {
+  onDismiss: () => void;
+  onStart: () => void;
+  preferences: RunPreferences;
+  researchAvailable: boolean;
+}) {
+  return (
+    <div aria-label="Confirm lead search" className="search-confirmation" role="group">
+      <strong>Ready to find {preferences.targetLeads} strong leads</strong>
+      <p>
+        {researchAvailable
+          ? `Aurum will research up to ${preferences.maxCandidates} sites using your current brief.`
+          : "Web research needs a YDC API key before this search can start."}
+      </p>
+      <div className="search-confirmation-actions">
+        <button disabled={!researchAvailable} onClick={onStart} type="button">
+          Start search
+        </button>
+        <button onClick={onDismiss} type="button">Keep editing</button>
+      </div>
+    </div>
+  );
+}
+
+function CurrentBrief({
+  instructions,
+  preferences,
+}: {
+  instructions: string;
+  preferences: RunPreferences;
+}) {
+  const exclusions = preferences.avoidTerms ?? [];
+
+  return (
+    <details className="current-brief">
+      <summary>
+        <span>
+          <strong>Current brief</strong>
+          <small>
+            Canada · {quantityLabel(preferences.acceptedCategories.length, "category", "categories")} ·{" "}
+            {quantityLabel(preferences.acceptedMetals.length, "metal", "metals")} ·{" "}
+            {quantityLabel(exclusions.length, "exclusion", "exclusions")} · {preferences.threshold}+ qualifies
+          </small>
+        </span>
+        <span className="current-brief-action">Review</span>
+      </summary>
+      <div className="current-brief-body">
+        <div className="criteria-readback" aria-label="Current search understanding">
+          <CriteriaReadback
+            items={["Verified Canadian location", ...preferences.acceptedCategories.slice(0, 3)]}
+            label="Must match"
+          />
+          <CriteriaReadback
+            items={[
+              ...preferences.acceptedMetals.slice(0, 3),
+              ...(instructions ? [instructions] : []),
+            ]}
+            label="Prefer"
+          />
+          <CriteriaReadback
+            empty="Nothing yet"
+            items={exclusions.slice(0, 4)}
+            label="Avoid"
+          />
+        </div>
+        <ScoringPreview preferences={preferences} />
+      </div>
+    </details>
   );
 }
 
@@ -280,6 +400,45 @@ function chatMessage(
   };
 }
 
+function requestsSearchConfirmation(message: string): boolean {
+  const normalized = normalizeCommand(message);
+  if (/\b(?:do not|don't|dont|not yet|wait|later|hold off)\b/.test(normalized)) {
+    return false;
+  }
+
+  return (
+    /\b(?:start|begin|launch)\s+(?:(?:the|a|my|this|our)\s+)?(?:lead\s+)?(?:search|research)\b/.test(normalized) ||
+    /\brun\s+(?:(?:the|a|my|this|our)\s+)?(?:lead\s+)?(?:search|research)\b/.test(normalized) ||
+    /\b(?:run|start)\s+it\b/.test(normalized) ||
+    /\bgo ahead\b/.test(normalized) ||
+    /\bfind(?:\s+me)?(?:\s+\d+|\s+some|\s+the)?(?:\s+strong|\s+qualified)?\s+leads?\b/.test(normalized)
+  );
+}
+
+function isStandaloneSearchCommand(message: string): boolean {
+  const normalized = normalizeCommand(message)
+    .replace(/^(?:please\s+|can you\s+|could you\s+|let's\s+|lets\s+)/, "")
+    .replace(/\s+(?:please|now)$/, "")
+    .trim();
+
+  return (
+    /^(?:start|begin|launch)\s+(?:(?:the|a|my|this|our)\s+)?(?:lead\s+)?(?:search|research)$/.test(normalized) ||
+    /^run\s+(?:(?:the|a|my|this|our)\s+)?(?:lead\s+)?(?:search|research)$/.test(normalized) ||
+    /^(?:run|start)\s+it$/.test(normalized) ||
+    /^go ahead$/.test(normalized) ||
+    /^find(?:\s+me)?(?:\s+(?:some|the))?\s+leads?$/.test(normalized)
+  );
+}
+
+function normalizeCommand(message: string): string {
+  return message
+    .toLowerCase()
+    .replaceAll("’", "'")
+    .replace(/[^a-z0-9'\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function CriteriaReadback({
   empty,
   items,
@@ -321,4 +480,19 @@ function readError(value: unknown): string {
     typeof value.error === "string"
     ? value.error
     : "";
+}
+
+function quantityLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function runStageLabel(stage: RunStage | undefined): string {
+  if (!stage || stage === "queued") return "Starting research";
+  if (stage === "discovering") return "Discovering sellers";
+  if (stage === "verifying") return "Verifying locations";
+  if (stage === "researching") return "Researching evidence";
+  if (stage === "scoring" || stage === "qualifying") return "Scoring candidates";
+  if (stage === "deduplicating") return "Removing duplicates";
+  if (stage === "exporting") return "Preparing results";
+  return "Finishing research";
 }

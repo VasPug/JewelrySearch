@@ -24,7 +24,6 @@ import {
   RunConfig,
 } from "./run-config";
 import { RunHistory } from "./run-history";
-import { RunProgress } from "./run-progress";
 
 const RECENT_PREFERENCES_ID = "most-recent-valid-v4";
 const EXISTING_LEADS_SETTINGS_ID = "existing-leads-v1";
@@ -271,28 +270,16 @@ export function SourcingDashboard() {
             onStart={() => void startRun()}
             preferences={preferences}
             researchAvailable={apiConfigured === true}
+            run={currentRun}
           />
-
-          <details className="live-run-drawer" open={isRunning}>
-            <summary>
-              <span>
-                <strong>{isRunning ? "Research in progress" : "Run status"}</strong>
-                <small>
-                  {currentRun
-                    ? `${currentRun.qualifiedCount} fit · ${currentRun.researchedCount} researched`
-                    : "No research run yet"}
-                </small>
-              </span>
-              <span aria-hidden="true">⌄</span>
-            </summary>
-            <RunProgress isRunning={isRunning} onCancel={cancelRun} run={currentRun} />
-          </details>
         </aside>
 
         <LeadReviewWorkspace
           currentRun={currentRun}
           importedLeads={importedLeads}
+          isRunning={isRunning}
           memory={candidateMemory}
+          onCancel={cancelRun}
           onDecision={recordLeadDecision}
         />
       </section>

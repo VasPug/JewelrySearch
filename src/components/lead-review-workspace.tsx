@@ -8,9 +8,12 @@ import type {
   CandidateMemory,
   QualifiedLead,
   RunRecord,
+  RunStage,
   ScoreBreakdown,
   SellerType,
 } from "@/domain/types";
+
+import { RunProgress } from "./run-progress";
 
 export type LeadDecision = "good" | "maybe" | "not_fit";
 
@@ -33,7 +36,9 @@ type ReviewLead = {
 type LeadReviewWorkspaceProps = {
   currentRun: RunRecord | null;
   importedLeads: ImportedLead[];
+  isRunning?: boolean;
   memory: CandidateMemory[];
+  onCancel?: () => void;
   onDecision: (lead: {
     id: string;
     companyName: string;
@@ -61,7 +66,9 @@ const SCORE_COMPONENTS: { key: keyof ScoreBreakdown; label: string }[] = [
 export function LeadReviewWorkspace({
   currentRun,
   importedLeads,
+  isRunning = false,
   memory,
+  onCancel,
   onDecision,
 }: LeadReviewWorkspaceProps) {
   const [filter, setFilter] = useState<"all" | LeadDecision>("all");
@@ -121,7 +128,15 @@ export function LeadReviewWorkspace({
           ))}
         </div>
 
-        {visibleLeads.length === 0 ? (
+        {visibleLeads.length === 0 && leads.length === 0 && currentRun ? (
+          <div className="lead-run-state">
+            <RunProgress
+              isRunning={isRunning}
+              onCancel={onCancel}
+              run={currentRun}
+            />
+          </div>
+        ) : visibleLeads.length === 0 ? (
           <div className="lead-empty">
             <span aria-hidden="true">⌕</span>
             <h2>{leads.length ? "No leads in this view" : "Your lead review queue is empty"}</h2>
@@ -132,58 +147,67 @@ export function LeadReviewWorkspace({
             </p>
           </div>
         ) : (
-          <div className="lead-list">
-            {visibleLeads.map((lead) => (
-              <article
-                className={`lead-row ${selected?.id === lead.id ? "is-selected" : ""}`}
-                key={lead.id}
-              >
-                <button
-                  className="lead-row-main"
-                  onClick={() => setSelectedId(lead.id)}
-                  type="button"
+          <>
+            {currentRun ? (
+              <RunStatusBanner
+                isRunning={isRunning}
+                onCancel={onCancel}
+                run={currentRun}
+              />
+            ) : null}
+            <div className="lead-list">
+              {visibleLeads.map((lead) => (
+                <article
+                  className={`lead-row ${selected?.id === lead.id ? "is-selected" : ""}`}
+                  key={lead.id}
                 >
-                  <span className={`fit-dot is-${finalDecision(lead)}`} aria-hidden="true" />
-                  <span className="lead-row-copy">
-                    <strong>{lead.companyName}</strong>
-                    <small>
-                      {humanize(lead.sellerType) || "Seller type unknown"}
-                      {lead.mainProductSegment ? ` · ${lead.mainProductSegment}` : ""}
-                    </small>
-                  </span>
-                  <span className={`recommendation-pill is-${lead.recommendation}`}>
-                    {recommendationLabel(lead.recommendation)}
-                  </span>
-                  {lead.confidenceScore !== null ? (
-                    <span className="lead-score">{lead.confidenceScore}</span>
-                  ) : null}
-                </button>
+                  <button
+                    className="lead-row-main"
+                    onClick={() => setSelectedId(lead.id)}
+                    type="button"
+                  >
+                    <span className={`fit-dot is-${finalDecision(lead)}`} aria-hidden="true" />
+                    <span className="lead-row-copy">
+                      <strong>{lead.companyName}</strong>
+                      <small>
+                        {humanize(lead.sellerType) || "Seller type unknown"}
+                        {lead.mainProductSegment ? ` · ${lead.mainProductSegment}` : ""}
+                      </small>
+                    </span>
+                    <span className={`recommendation-pill is-${lead.recommendation}`}>
+                      {recommendationLabel(lead.recommendation)}
+                    </span>
+                    {lead.confidenceScore !== null ? (
+                      <span className="lead-score">{lead.confidenceScore}</span>
+                    ) : null}
+                  </button>
 
-                <div className="decision-buttons" aria-label={`Review ${lead.companyName}`}>
-                  <span>Your call</span>
-                  {(["good", "maybe", "not_fit"] as const).map((decision) => (
-                    <button
-                      aria-label={`${decisionLabel(decision)}: ${lead.companyName}`}
-                      aria-pressed={lead.humanDecision === decision}
-                      className={`is-${decision}`}
-                      key={decision}
-                      onClick={() =>
-                        onDecision({
-                          id: lead.id,
-                          companyName: lead.companyName,
-                          websiteUrl: lead.websiteUrl,
-                          decision,
-                        })
-                      }
-                      type="button"
-                    >
-                      {decisionLabel(decision)}
-                    </button>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
+                  <div className="decision-buttons" aria-label={`Review ${lead.companyName}`}>
+                    <span>Your call</span>
+                    {(["good", "maybe", "not_fit"] as const).map((decision) => (
+                      <button
+                        aria-label={`${decisionLabel(decision)}: ${lead.companyName}`}
+                        aria-pressed={lead.humanDecision === decision}
+                        className={`is-${decision}`}
+                        key={decision}
+                        onClick={() =>
+                          onDecision({
+                            id: lead.id,
+                            companyName: lead.companyName,
+                            websiteUrl: lead.websiteUrl,
+                            decision,
+                          })
+                        }
+                        type="button"
+                      >
+                        {decisionLabel(decision)}
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -191,6 +215,38 @@ export function LeadReviewWorkspace({
         {selected ? <SelectedLeadEvidence lead={selected} /> : <EvidenceEmpty />}
       </aside>
     </>
+  );
+}
+
+function RunStatusBanner({
+  isRunning,
+  onCancel,
+  run,
+}: {
+  isRunning: boolean;
+  onCancel?: () => void;
+  run: RunRecord;
+}) {
+  const tone = run.error || run.outcome === "failed"
+    ? "is-error"
+    : run.outcome === "cancelled" || run.outcome === "candidate_budget_reached" || run.outcome === "search_exhausted"
+      ? "is-caution"
+      : isRunning
+        ? "is-running"
+        : "is-complete";
+
+  return (
+    <div className={`lead-run-banner ${tone}`} role="status">
+      <span>
+        <strong>{runStatusLabel(run, isRunning)}</strong>
+        <small>
+          {run.qualifiedCount}/{run.preferences.targetLeads} fit · {run.researchedCount} researched
+        </small>
+      </span>
+      {isRunning && onCancel ? (
+        <button onClick={onCancel} type="button">Stop search</button>
+      ) : null}
+    </div>
   );
 }
 
@@ -431,6 +487,26 @@ function decisionLabel(value: LeadDecision): string {
   if (value === "good") return "Good";
   if (value === "maybe") return "Maybe";
   return "Not fit";
+}
+
+function runStatusLabel(run: RunRecord, isRunning: boolean): string {
+  if (isRunning) return activeStageLabel(run.stage);
+  if (run.error || run.outcome === "failed") return "Research failed";
+  if (run.outcome === "cancelled") return "Research stopped · partial results kept";
+  if (run.outcome === "candidate_budget_reached") return "Candidate budget reached";
+  if (run.outcome === "search_exhausted") return "Search exhausted";
+  if (run.outcome === "target_reached") return "Lead target reached";
+  return "Research complete";
+}
+
+function activeStageLabel(stage: RunStage): string {
+  if (stage === "discovering") return "Discovering sellers";
+  if (stage === "verifying") return "Verifying locations";
+  if (stage === "researching") return "Researching evidence";
+  if (stage === "scoring" || stage === "qualifying") return "Scoring candidates";
+  if (stage === "deduplicating") return "Removing duplicates";
+  if (stage === "exporting") return "Preparing results";
+  return "Research in progress";
 }
 
 function sourceHost(url: string): string {

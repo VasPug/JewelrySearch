@@ -2,11 +2,35 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_PREFERENCES } from "@/domain/defaults";
 import type { ImportedLead } from "@/domain/imported-leads";
+import type { RunRecord } from "@/domain/types";
 
 import { LeadReviewWorkspace } from "./lead-review-workspace";
 
 afterEach(cleanup);
+
+function activeRun(overrides: Partial<RunRecord> = {}): RunRecord {
+  return {
+    id: "run-12345678",
+    startedAt: "2026-07-31T00:00:00.000Z",
+    completedAt: null,
+    stage: "researching",
+    outcome: null,
+    preferences: { ...DEFAULT_PREFERENCES },
+    discoveredCount: 5,
+    researchedCount: 0,
+    qualifiedCount: 0,
+    rejectedCount: 0,
+    deduplicatedCount: 0,
+    researchLimitReached: false,
+    leads: [],
+    rejectionReasons: {},
+    rejectedEvidence: {},
+    error: null,
+    ...overrides,
+  };
+}
 
 describe("LeadReviewWorkspace", () => {
   it("shows imported leads and records the human's final decision", () => {
@@ -56,5 +80,73 @@ describe("LeadReviewWorkspace", () => {
     expect(screen.getByText("Your lead review queue is empty")).toBeVisible();
     expect(screen.getByText("Evidence appears here")).toBeVisible();
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeDisabled();
+  });
+
+  it("uses the lead pane for detailed progress while the first results are pending", () => {
+    const onCancel = vi.fn();
+    render(
+      <LeadReviewWorkspace
+        currentRun={activeRun()}
+        importedLeads={[]}
+        isRunning
+        memory={[]}
+        onCancel={onCancel}
+        onDecision={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Researching evidence" })).toBeVisible();
+    expect(screen.queryByText("Your lead review queue is empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("keeps partial leads reviewable while showing compact run status", () => {
+    const onCancel = vi.fn();
+    const lead: ImportedLead = {
+      id: "https://foxyoriginals.com",
+      companyName: "Foxy Originals",
+      websiteUrl: "https://foxyoriginals.com",
+      phoneNumber: "",
+      instagramUrl: "",
+      feedbackStatus: "maybe",
+      feedbackNotes: "Initial gut check",
+      importedAt: "2026-07-30T00:00:00.000Z",
+    };
+
+    render(
+      <LeadReviewWorkspace
+        currentRun={activeRun({ researchedCount: 2 })}
+        importedLeads={[lead]}
+        isRunning
+        memory={[]}
+        onCancel={onCancel}
+        onDecision={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Foxy Originals").length).toBeGreaterThan(0);
+    expect(screen.getByText("Researching evidence")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Stop search" }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("shows a recoverable terminal state when a run fails without leads", () => {
+    render(
+      <LeadReviewWorkspace
+        currentRun={activeRun({
+          completedAt: "2026-07-31T00:01:00.000Z",
+          error: "Research provider request failed",
+          outcome: "failed",
+          stage: "failed",
+        })}
+        importedLeads={[]}
+        memory={[]}
+        onDecision={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Run failed" })).toBeVisible();
+    expect(screen.getByText(/research provider request failed/i)).toBeVisible();
   });
 });

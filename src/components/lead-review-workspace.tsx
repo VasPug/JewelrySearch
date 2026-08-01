@@ -12,6 +12,14 @@ import type {
   ScoreBreakdown,
   SellerType,
 } from "@/domain/types";
+import {
+  activeCandidateLabel,
+  compactRunCounts,
+  recentRunActivity,
+  retryableCandidates,
+  runIssueCount,
+  runIssues,
+} from "@/domain/run-observability";
 
 import { RunProgress } from "./run-progress";
 
@@ -39,6 +47,8 @@ type LeadReviewWorkspaceProps = {
   isRunning?: boolean;
   memory: CandidateMemory[];
   onCancel?: () => void;
+  onRetry?: () => void;
+  onRetryFailed?: () => void;
   onDecision: (lead: {
     id: string;
     companyName: string;
@@ -69,6 +79,8 @@ export function LeadReviewWorkspace({
   isRunning = false,
   memory,
   onCancel,
+  onRetry,
+  onRetryFailed,
   onDecision,
 }: LeadReviewWorkspaceProps) {
   const [filter, setFilter] = useState<"all" | LeadDecision>("all");
@@ -133,6 +145,8 @@ export function LeadReviewWorkspace({
             <RunProgress
               isRunning={isRunning}
               onCancel={onCancel}
+              onRetry={onRetry}
+              onRetryFailed={onRetryFailed}
               run={currentRun}
             />
           </div>
@@ -152,6 +166,8 @@ export function LeadReviewWorkspace({
               <RunStatusBanner
                 isRunning={isRunning}
                 onCancel={onCancel}
+                onRetry={onRetry}
+                onRetryFailed={onRetryFailed}
                 run={currentRun}
               />
             ) : null}
@@ -221,10 +237,14 @@ export function LeadReviewWorkspace({
 function RunStatusBanner({
   isRunning,
   onCancel,
+  onRetry,
+  onRetryFailed,
   run,
 }: {
   isRunning: boolean;
   onCancel?: () => void;
+  onRetry?: () => void;
+  onRetryFailed?: () => void;
   run: RunRecord;
 }) {
   const tone = run.error || run.outcome === "failed"
@@ -234,17 +254,55 @@ function RunStatusBanner({
       : isRunning
         ? "is-running"
         : "is-complete";
+  const issues = runIssues(run);
+  const issueCount = runIssueCount(run);
+  const activity = recentRunActivity(run, 5);
+  const activeCandidate = activeCandidateLabel(run);
+  const failedCandidates = retryableCandidates(run);
+  const canRetry = !isRunning && (run.error || run.outcome === "failed" || run.outcome === "partial");
 
   return (
     <div className={`lead-run-banner ${tone}`} role="status">
-      <span>
-        <strong>{runStatusLabel(run, isRunning)}</strong>
-        <small>
-          {run.qualifiedCount}/{run.preferences.targetLeads} fit · {run.researchedCount} researched
-        </small>
-      </span>
-      {isRunning && onCancel ? (
-        <button onClick={onCancel} type="button">Stop search</button>
+      <div className="lead-run-banner-summary">
+        <span>
+          <strong>{runStatusLabel(run, isRunning)}</strong>
+          <small>{activeCandidate || compactRunCounts(run)}</small>
+        </span>
+        <div className="lead-run-banner-actions">
+          {isRunning && onCancel ? (
+            <button onClick={onCancel} type="button">Stop search</button>
+          ) : null}
+          {canRetry && failedCandidates.length > 0 && onRetryFailed ? (
+            <button onClick={onRetryFailed} type="button">Retry failed sellers</button>
+          ) : null}
+          {canRetry && onRetry ? (
+            <button onClick={onRetry} type="button">Retry search</button>
+          ) : null}
+        </div>
+      </div>
+      {issues.length > 0 || activity.length > 0 ? (
+        <details className="lead-run-details">
+          <summary>
+            {issueCount
+              ? `${issueCount} ${issueCount === 1 ? "issue" : "issues"} · View activity`
+              : "View activity"}
+          </summary>
+          {issues.length > 0 ? (
+            <ul>
+              {issues.slice(-4).reverse().map((issue) => (
+                <li key={issue.id}>
+                  <strong>{issue.candidate?.companyName ?? "Search"}</strong>
+                  <span>{issue.message}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {activity.length > 0 ? (
+            <ol>
+              {activity.map((item) => <li key={item.id}>{item.message}</li>)}
+            </ol>
+          ) : null}
+        </details>
       ) : null}
     </div>
   );
@@ -492,6 +550,7 @@ function decisionLabel(value: LeadDecision): string {
 function runStatusLabel(run: RunRecord, isRunning: boolean): string {
   if (isRunning) return activeStageLabel(run.stage);
   if (run.error || run.outcome === "failed") return "Research failed";
+  if (run.outcome === "partial") return "Partial results kept";
   if (run.outcome === "cancelled") return "Research stopped · partial results kept";
   if (run.outcome === "candidate_budget_reached") return "Candidate budget reached";
   if (run.outcome === "search_exhausted") return "Search exhausted";

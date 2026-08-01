@@ -175,9 +175,36 @@ export type RunOutcome =
   | "target_reached"
   | "candidate_budget_reached"
   | "search_exhausted"
+  | "partial"
   | "completed"
   | "cancelled"
   | "failed";
+
+export type RunIssueKind =
+  | "rate_limit"
+  | "configuration"
+  | "network"
+  | "provider"
+  | "validation"
+  | "unknown";
+
+export type RunIssue = {
+  id: string;
+  occurredAt: string;
+  stage: RunStage;
+  scope: "run" | "candidate";
+  kind: RunIssueKind;
+  message: string;
+  retryable: boolean;
+  candidate: DiscoveryCandidate | null;
+};
+
+export type RunActivity = {
+  id: string;
+  occurredAt: string;
+  kind: "stage" | "discovery" | "candidate" | "accepted" | "rejected" | "issue" | "complete";
+  message: string;
+};
 
 export type RunRecord = {
   id: string;
@@ -196,6 +223,12 @@ export type RunRecord = {
   rejectionReasons: Record<string, RejectionReason[]>;
   rejectedEvidence: Record<string, CandidateEvidence>;
   error: string | null;
+  /** Optional for compatibility with runs saved before structured observability shipped. */
+  issues?: RunIssue[];
+  /** Most recent activity is retained as a bounded, human-readable run ledger. */
+  activity?: RunActivity[];
+  /** Transient candidates currently being researched. */
+  activeCandidates?: Pick<DiscoveryCandidate, "id" | "companyName">[];
 };
 
 export type CandidateMemory = {

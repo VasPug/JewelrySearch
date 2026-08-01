@@ -1048,11 +1048,116 @@ button:disabled {
   color: #805f35;
   background: #f6eee1;
   font-size: 10px;
+  line-height: 1.45;
 }
 
 .run-note.is-error {
   color: #7b3727;
   background: #f4e4de;
+}
+
+.run-current-candidate {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.run-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.run-recovery-actions button {
+  min-height: 38px;
+  padding: 0 11px;
+  color: #6f3023;
+  border: 1px solid #c99789;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.run-activity {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.run-activity > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+  list-style: none;
+}
+
+.run-activity > summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-activity > summary span:last-child {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.run-issue-list,
+.run-activity-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--line);
+  list-style: none;
+}
+
+.run-issue-list li,
+.run-activity-list li {
+  min-width: 0;
+  padding: 9px 10px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.run-issue-list strong,
+.run-issue-list span {
+  display: block;
+}
+
+.run-issue-list strong {
+  color: #7b3727;
+  font-size: 9px;
+}
+
+.run-issue-list span,
+.run-activity-list span {
+  margin-top: 2px;
+  color: #5c6560;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.run-activity-list {
+  margin-top: 1px;
+}
+
+.run-activity-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+}
+
+.run-activity-list time {
+  color: #7d8580;
+  font-family: var(--mono);
+  font-size: 8px;
 }
 
 .cancel-button {
@@ -1828,7 +1933,6 @@ body {
 
 .equation-formula,
 .eyebrow,
-.stage-list,
 .idle-orbit {
   display: none;
 }
@@ -2253,6 +2357,7 @@ body {
 .assistant-run-action strong,
 .assistant-run-action small {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .assistant-run-action strong {
@@ -2561,17 +2666,21 @@ body {
 
 .lead-run-banner {
   min-height: 52px;
-  display: flex;
+  display: block;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   padding: 9px 16px;
   border-bottom: 1px solid #e1e3df;
   background: #f6f8f5;
 }
 
-.lead-run-banner > span {
+.lead-run-banner-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lead-run-banner-summary > span {
   min-width: 0;
 }
 
@@ -2588,6 +2697,7 @@ body {
   margin-top: 2px;
   color: var(--muted);
   font-size: 8px;
+  overflow-wrap: anywhere;
 }
 
 .lead-run-banner.is-error {
@@ -2600,9 +2710,16 @@ body {
   background: #faf2e7;
 }
 
+.lead-run-banner-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .lead-run-banner button {
   min-height: 34px;
-  flex: 0 0 auto;
   padding: 0 10px;
   color: var(--terracotta);
   border: 1px solid #d8b1a7;
@@ -2611,6 +2728,53 @@ body {
   font-size: 8px;
   font-weight: 750;
   cursor: pointer;
+}
+
+.lead-run-details {
+  margin-top: 8px;
+  border-top: 1px solid rgb(30 65 54 / 12%);
+}
+
+.lead-run-details > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 750;
+  list-style: none;
+}
+
+.lead-run-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lead-run-details ul,
+.lead-run-details ol {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.lead-run-details li {
+  min-width: 0;
+  padding: 7px 8px;
+  background: rgb(255 255 255 / 68%);
+  font-size: 8px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.lead-run-details li strong,
+.lead-run-details li span {
+  display: block;
+}
+
+.lead-run-details li span {
+  margin-top: 2px;
+  color: #69544e;
 }
 
 .lead-list {
@@ -3208,5 +3372,18 @@ body {
 
   .lead-run-banner {
     padding-inline: 13px;
+  }
+
+  .lead-run-banner-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lead-run-banner-actions {
+    justify-content: flex-start;
+  }
+
+  .lead-run-banner button {
+    min-height: 40px;
   }
 }

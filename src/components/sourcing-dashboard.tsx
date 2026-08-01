@@ -11,6 +11,7 @@ import type {
   RunPreferences,
   RunRecord,
 } from "@/domain/types";
+import { retryableCandidates } from "@/domain/run-observability";
 import { reviewImportedLeads, runResearch } from "@/research/orchestrator";
 import { dashboardDb } from "@/storage/db";
 
@@ -215,6 +216,33 @@ export function SourcingDashboard() {
     }
   }, [apiConfigured, importedLeads, instructions, isRunning, preferences]);
 
+  const retryFailedSellers = useCallback(async () => {
+    if (isRunning || !apiConfigured || !currentRun) return;
+    const candidates = retryableCandidates(currentRun);
+    if (candidates.length === 0) return;
+
+    const sourceRun = structuredClone(currentRun);
+    setIsRunning(true);
+    const controller = new AbortController();
+    runController.current = controller;
+    try {
+      const completed = await reviewImportedLeads(
+        clonePreferences(sourceRun.preferences),
+        candidates,
+        { onProgress: setCurrentRun },
+        {
+          instructions: feedbackAwareInstructions(instructions, importedLeads),
+          seedRun: sourceRun,
+          signal: controller.signal,
+        },
+      );
+      await finishRun(completed);
+    } finally {
+      if (runController.current === controller) runController.current = null;
+      setIsRunning(false);
+    }
+  }, [apiConfigured, currentRun, importedLeads, instructions, isRunning]);
+
   const cancelRun = useCallback(() => {
     runController.current?.abort();
   }, []);
@@ -281,6 +309,8 @@ export function SourcingDashboard() {
           memory={candidateMemory}
           onCancel={cancelRun}
           onDecision={recordLeadDecision}
+          onRetry={() => void startRun()}
+          onRetryFailed={() => void retryFailedSellers()}
         />
       </section>
 

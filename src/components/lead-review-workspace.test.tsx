@@ -149,4 +149,67 @@ describe("LeadReviewWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Run failed" })).toBeVisible();
     expect(screen.getByText(/research provider request failed/i)).toBeVisible();
   });
+
+  it("keeps partial leads visible with specific issues and retry actions", () => {
+    const onRetry = vi.fn();
+    const onRetryFailed = vi.fn();
+    const lead: ImportedLead = {
+      id: "https://foxyoriginals.com",
+      companyName: "Foxy Originals",
+      websiteUrl: "https://foxyoriginals.com",
+      phoneNumber: "",
+      instagramUrl: "",
+      feedbackStatus: "maybe",
+      feedbackNotes: "Initial gut check",
+      importedAt: "2026-07-30T00:00:00.000Z",
+    };
+
+    render(
+      <LeadReviewWorkspace
+        currentRun={activeRun({
+          completedAt: "2026-07-31T00:01:00.000Z",
+          outcome: "partial",
+          stage: "exhausted",
+          researchedCount: 3,
+          qualifiedCount: 1,
+          issues: [{
+            id: "issue-1",
+            occurredAt: "2026-07-31T00:00:30.000Z",
+            stage: "researching",
+            scope: "candidate",
+            kind: "provider",
+            message: "The research provider could not complete the request. Retry the search.",
+            retryable: true,
+            candidate: {
+              id: "seller-1",
+              companyName: "Silver House",
+              websiteUrl: "https://silverhouse.ca",
+              discoverySource: "search",
+            },
+          }],
+          activity: [{
+            id: "activity-1",
+            occurredAt: "2026-07-31T00:00:30.000Z",
+            kind: "issue",
+            message: "Could not check Silver House",
+          }],
+        })}
+        importedLeads={[lead]}
+        memory={[]}
+        onDecision={vi.fn()}
+        onRetry={onRetry}
+        onRetryFailed={onRetryFailed}
+      />,
+    );
+
+    expect(screen.getAllByText("Foxy Originals").length).toBeGreaterThan(0);
+    expect(screen.getByText("Partial results kept")).toBeVisible();
+    fireEvent.click(screen.getByText(/1 issue · view activity/i));
+    expect(screen.getByText(/research provider could not complete/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed sellers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry search" }));
+    expect(onRetryFailed).toHaveBeenCalledOnce();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
 });

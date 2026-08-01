@@ -342,4 +342,96 @@ describe("CriteriaAssistant", () => {
     await waitFor(() => expect(screen.queryByText(/updating your criteria/i)).not.toBeInTheDocument());
     expect(screen.queryByRole("group", { name: /confirm lead search/i })).not.toBeInTheDocument();
   });
+
+  it("summarizes active background research inside the chat controls", () => {
+    render(
+      <CriteriaAssistant
+        apiAvailable
+        feedback={[]}
+        instructions=""
+        isRunning
+        messages={[]}
+        onApply={vi.fn()}
+        onCancel={vi.fn()}
+        onMessagesChange={vi.fn()}
+        preferences={{
+          ...DEFAULT_PREFERENCES,
+          weights: { ...DEFAULT_PREFERENCES.weights },
+          acceptedMetals: [...DEFAULT_PREFERENCES.acceptedMetals],
+          acceptedCategories: [...DEFAULT_PREFERENCES.acceptedCategories],
+          avoidTerms: [...DEFAULT_PREFERENCES.avoidTerms],
+        }}
+        researchAvailable
+        run={{
+          id: "run-live",
+          startedAt: "2026-07-31T00:00:00.000Z",
+          completedAt: null,
+          stage: "researching",
+          outcome: null,
+          preferences: { ...DEFAULT_PREFERENCES },
+          discoveredCount: 6,
+          researchedCount: 4,
+          qualifiedCount: 2,
+          rejectedCount: 1,
+          deduplicatedCount: 0,
+          researchLimitReached: false,
+          leads: [],
+          rejectionReasons: {},
+          rejectedEvidence: {},
+          error: null,
+          issues: [],
+          activity: [],
+          activeCandidates: [{ id: "seller-1", companyName: "Silver House" }],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Researching evidence")).toBeVisible();
+    expect(screen.getByText("Checking Silver House")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Stop search" })).toBeVisible();
+  });
+
+  it("shows the failure reason and retry action in the chat controls", () => {
+    render(
+      <CriteriaAssistant
+        apiAvailable
+        feedback={[]}
+        instructions=""
+        messages={[]}
+        onApply={vi.fn()}
+        onMessagesChange={vi.fn()}
+        onStart={vi.fn()}
+        preferences={{
+          ...DEFAULT_PREFERENCES,
+          weights: { ...DEFAULT_PREFERENCES.weights },
+          acceptedMetals: [...DEFAULT_PREFERENCES.acceptedMetals],
+          acceptedCategories: [...DEFAULT_PREFERENCES.acceptedCategories],
+          avoidTerms: [...DEFAULT_PREFERENCES.avoidTerms],
+        }}
+        researchAvailable
+        run={{
+          id: "run-failed",
+          startedAt: "2026-07-31T00:00:00.000Z",
+          completedAt: "2026-07-31T00:01:00.000Z",
+          stage: "failed",
+          outcome: "failed",
+          preferences: { ...DEFAULT_PREFERENCES },
+          discoveredCount: 0,
+          researchedCount: 0,
+          qualifiedCount: 0,
+          rejectedCount: 0,
+          deduplicatedCount: 0,
+          researchLimitReached: false,
+          leads: [],
+          rejectionReasons: {},
+          rejectedEvidence: {},
+          error: "The research provider is rate-limiting requests. Wait a moment, then retry.",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Search failed")).toBeVisible();
+    expect(screen.getByText(/rate-limiting requests/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: /retry search/i })).toBeVisible();
+  });
 });

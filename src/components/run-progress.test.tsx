@@ -54,6 +54,58 @@ describe("RunProgress", () => {
       />,
     );
 
-    expect(screen.getByText(/kept 2 accepted leads from 4 completed candidates/i)).toBeVisible();
+    expect(screen.getByText(/kept 2 accepted leads after checking 4 candidates/i)).toBeVisible();
+  });
+
+  it("shows structured candidate issues, activity, and retry recovery", () => {
+    const onRetry = vi.fn();
+    const onRetryFailed = vi.fn();
+    render(
+      <RunProgress
+        onRetry={onRetry}
+        onRetryFailed={onRetryFailed}
+        run={activeRun({
+          completedAt: new Date().toISOString(),
+          stage: "exhausted",
+          outcome: "partial",
+          researchedCount: 3,
+          qualifiedCount: 1,
+          issues: [{
+            id: "issue-1",
+            occurredAt: "2026-07-31T00:00:10.000Z",
+            stage: "researching",
+            scope: "candidate",
+            kind: "rate_limit",
+            message: "The research provider is rate-limiting requests. Wait a moment, then retry.",
+            retryable: true,
+            candidate: {
+              id: "seller-1",
+              companyName: "Silver House",
+              websiteUrl: "https://silverhouse.ca",
+              discoverySource: "search",
+            },
+          }],
+          activity: [{
+            id: "activity-1",
+            occurredAt: "2026-07-31T00:00:10.000Z",
+            kind: "issue",
+            message: "Could not check Silver House",
+          }],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Partial results ready" })).toBeVisible();
+    expect(screen.getByText("1", { selector: ".counter.is-danger strong" })).toBeVisible();
+    expect(screen.getByText(/partial results kept/i)).toBeVisible();
+
+    fireEvent.click(screen.getByText(/1 issue/i));
+    expect(screen.getByText("Silver House")).toBeVisible();
+    expect(screen.getByText(/rate-limiting requests/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed sellers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry search" }));
+    expect(onRetryFailed).toHaveBeenCalledOnce();
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });

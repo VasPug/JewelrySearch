@@ -1,6 +1,17 @@
 import { isDuplicate, type DedupCandidate } from "@/domain/deduplicate";
 import { scoreCandidate } from "@/domain/scoring";
-import type { CandidateEvidence, CandidateMemory, DiscoveryCandidate, QualifiedLead, RunPreferences, RunRecord, RunStage } from "@/domain/types";
+import type {
+  CandidateEvidence,
+  CandidateMemory,
+  DiscoveryCandidate,
+  QualifiedLead,
+  RunActivity,
+  RunIssue,
+  RunIssueKind,
+  RunPreferences,
+  RunRecord,
+  RunStage,
+} from "@/domain/types";
 import { dashboardDb } from "@/storage/db";
 
 import { discoveryQueries } from "./prompts";
@@ -31,6 +42,7 @@ export type RunDependencies = {
   id?: () => string;
   instructions?: string;
   signal?: AbortSignal;
+  seedRun?: RunRecord;
 };
 
 const DISCOVERY_BATCH_SIZE = 5;
@@ -67,6 +79,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
   const run: RunRecord = {
     id: dependencies.id?.() ?? crypto.randomUUID(), startedAt: new Date().toISOString(), completedAt: null, stage: "discovering", preferences,
     outcome: null, discoveredCount: 0, researchedCount: 0, qualifiedCount: 0, rejectedCount: 0, deduplicatedCount: 0, researchLimitReached: false, leads: [], rejectionReasons: {}, rejectedEvidence: {}, error: null,
+    issues: [], activity: [], activeCandidates: [],
   };
   let persistence = Promise.resolve();
   const persist = () => {
@@ -75,7 +88,14 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
     return persistence;
   };
   const emit = () => callbacks.onProgress?.(structuredClone(run));
-  const stage = async (next: RunStage) => { run.stage = next; callbacks.onStage?.(next); emit(); await persist(); };
+  addActivity(run, "stage", "Search started");
+  const stage = async (next: RunStage) => {
+    run.stage = next;
+    addActivity(run, "stage", stageActivityMessage(next));
+    callbacks.onStage?.(next);
+    emit();
+    await persist();
+  };
 
   try {
     throwIfAborted(signal);
@@ -98,6 +118,11 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       const remaining = preferences.maxCandidates - run.researchedCount;
       const discovered = await gateway.discoverCandidates(queries[queryIndex % queries.length]!, Math.min(DISCOVERY_BATCH_SIZE, remaining), signal);
       queryIndex += 1;
+      addActivity(
+        run,
+        "discovery",
+        discovered.length === 1 ? "Discovered 1 seller" : `Discovered ${discovered.length} sellers`,
+      );
       const prefilterMemories: CandidateMemory[] = [];
       const fresh = discovered.filter((item) => {
         if (isDuplicate(item, known)) { run.deduplicatedCount += 1; return false; }
@@ -122,6 +147,9 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       await stage("researching");
       await concurrentForEach(batch, preferences.maxConcurrentResearch, async (item) => {
         throwIfAborted(signal);
+        setCandidateActive(run, item, true);
+        addActivity(run, "candidate", `Checking ${item.companyName}`);
+        emit();
         try {
           const evidence = await gateway.researchCandidate(item, preferences, instructions, signal);
           throwIfAborted(signal);
@@ -133,6 +161,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
             const lead = toQualifiedLead(evidence, result.confidence, result.breakdown);
             run.leads.push(lead);
             run.qualifiedCount += 1;
+            addActivity(run, "accepted", `Accepted ${item.companyName}`);
             await storage.saveAcceptedLeads([lead]);
             await storage.saveCandidateMemory([memory(item, "accepted", "", run.id)]);
           } else {
@@ -143,6 +172,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
               : run.qualifiedCount >= preferences.targetLeads
                 ? ["Lead target reached"]
                 : ["Duplicate candidate"];
+            addActivity(run, "rejected", `Did not qualify ${item.companyName}`);
             await storage.saveCandidateMemory([
               memory(item, "rejected", run.rejectionReasons[item.id]!.join("; "), run.id),
             ]);
@@ -150,11 +180,11 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
         } catch (error) {
           if (isAbortError(error) || signal?.aborted) throw error;
           run.researchedCount += 1;
-          run.rejectedCount += 1;
-          run.rejectionReasons[item.id] = [error instanceof Error ? error.message : "Candidate research failed"];
-          await storage.saveCandidateMemory([
-            memory(item, "rejected", run.rejectionReasons[item.id]!.join("; "), run.id),
-          ]);
+          const issue = createRunIssue(error, run.stage, item);
+          run.issues = [...(run.issues ?? []), issue];
+          addActivity(run, "issue", `Could not check ${item.companyName}: ${issue.message}`);
+        } finally {
+          setCandidateActive(run, item, false);
         }
         emit();
         await persist();
@@ -163,9 +193,20 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
     run.researchLimitReached = run.researchedCount >= preferences.maxCandidates;
     if (run.qualifiedCount >= preferences.targetLeads) {
       run.outcome = "target_reached";
+      addActivity(run, "complete", `Lead target reached with ${run.qualifiedCount} accepted sellers`);
       await stage("export-ready");
+    } else if ((run.issues?.length ?? 0) > 0 && hasUsableResearch(run)) {
+      run.outcome = "partial";
+      addActivity(run, "complete", "Search finished with partial results");
+      await stage("exhausted");
+    } else if ((run.issues?.length ?? 0) > 0) {
+      run.error = primaryIssueMessage(run);
+      run.outcome = "failed";
+      addActivity(run, "complete", "Search failed before any candidate could be evaluated");
+      await stage("failed");
     } else {
       run.outcome = run.researchLimitReached ? "candidate_budget_reached" : "search_exhausted";
+      addActivity(run, "complete", run.researchLimitReached ? "Candidate budget reached" : "No new sellers remained");
       await stage("exhausted");
     }
   } catch (error) {
@@ -173,8 +214,11 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       run.outcome = "cancelled";
       await stage("cancelled");
     } else {
-      run.error = error instanceof Error ? error.message : "Run failed";
+      const issue = createRunIssue(error, run.stage, null);
+      run.issues = [...(run.issues ?? []), issue];
+      run.error = issue.message;
       run.outcome = "failed";
+      addActivity(run, "issue", issue.message);
       await stage("failed");
     }
   } finally {
@@ -197,6 +241,8 @@ export async function reviewImportedLeads(
   const instructions = dependencies.instructions?.trim().slice(0, 240) ?? "";
   const signal = dependencies.signal;
   const batch = candidates.slice(0, preferences.maxCandidates);
+  const seedRun = dependencies.seedRun;
+  const retriedIds = new Set(batch.map((candidate) => candidate.id));
   const run: RunRecord = {
     id: dependencies.id?.() ?? crypto.randomUUID(),
     startedAt: new Date().toISOString(),
@@ -204,17 +250,27 @@ export async function reviewImportedLeads(
     stage: "researching",
     outcome: null,
     preferences,
-    discoveredCount: candidates.length,
-    researchedCount: 0,
-    qualifiedCount: 0,
-    rejectedCount: 0,
-    deduplicatedCount: 0,
+    discoveredCount: seedRun?.discoveredCount ?? candidates.length,
+    researchedCount: seedRun?.researchedCount ?? 0,
+    qualifiedCount: seedRun?.qualifiedCount ?? 0,
+    rejectedCount: seedRun?.rejectedCount ?? 0,
+    deduplicatedCount: seedRun?.deduplicatedCount ?? 0,
     researchLimitReached: false,
-    leads: [],
-    rejectionReasons: {},
-    rejectedEvidence: {},
+    leads: structuredClone(seedRun?.leads ?? []),
+    rejectionReasons: structuredClone(seedRun?.rejectionReasons ?? {}),
+    rejectedEvidence: structuredClone(seedRun?.rejectedEvidence ?? {}),
     error: null,
+    issues: (seedRun?.issues ?? []).filter(
+      (issue) => !issue.candidate || !retriedIds.has(issue.candidate.id),
+    ),
+    activity: structuredClone(seedRun?.activity ?? []),
+    activeCandidates: [],
   };
+  addActivity(
+    run,
+    "stage",
+    seedRun ? `Retrying ${batch.length} failed seller${batch.length === 1 ? "" : "s"}` : "Imported lead review started",
+  );
 
   const emit = () => callbacks.onProgress?.(structuredClone(run));
   const persist = async () => {
@@ -228,6 +284,9 @@ export async function reviewImportedLeads(
     await persist();
     await concurrentForEach(batch, preferences.maxConcurrentResearch, async (item) => {
       throwIfAborted(signal);
+      setCandidateActive(run, item, true);
+      addActivity(run, "candidate", `Checking ${item.companyName}`);
+      emit();
       try {
         const evidence = await gateway.researchCandidate(item, preferences, instructions, signal);
         throwIfAborted(signal);
@@ -237,12 +296,14 @@ export async function reviewImportedLeads(
           const lead = toQualifiedLead(evidence, result.confidence, result.breakdown);
           run.leads.push(lead);
           run.qualifiedCount += 1;
+          addActivity(run, "accepted", `Accepted ${item.companyName}`);
           await storage.saveAcceptedLeads([lead]);
           await storage.saveCandidateMemory([memory(item, "accepted", "", run.id)]);
         } else {
           run.rejectedCount += 1;
           run.rejectedEvidence[item.id] = evidence;
           run.rejectionReasons[item.id] = result.reasons;
+          addActivity(run, "rejected", `Did not qualify ${item.companyName}`);
           await storage.saveCandidateMemory([
             memory(item, "rejected", result.reasons.join("; "), run.id),
           ]);
@@ -250,27 +311,44 @@ export async function reviewImportedLeads(
       } catch (error) {
         if (isAbortError(error) || signal?.aborted) throw error;
         run.researchedCount += 1;
-        run.rejectedCount += 1;
-        run.rejectionReasons[item.id] = [
-          error instanceof Error ? error.message : "Candidate research failed",
-        ];
-        await storage.saveCandidateMemory([
-          memory(item, "rejected", run.rejectionReasons[item.id]!.join("; "), run.id),
-        ]);
+        const issue = createRunIssue(error, run.stage, item);
+        run.issues = [...(run.issues ?? []), issue];
+        addActivity(run, "issue", `Could not check ${item.companyName}: ${issue.message}`);
+      } finally {
+        setCandidateActive(run, item, false);
       }
       await persist();
     });
     run.researchLimitReached = candidates.length > batch.length;
-    run.outcome = run.researchLimitReached ? "candidate_budget_reached" : "completed";
-    run.stage = run.researchLimitReached ? "exhausted" : "export-ready";
+    if (run.qualifiedCount >= preferences.targetLeads) {
+      run.outcome = "target_reached";
+      run.stage = "export-ready";
+      addActivity(run, "complete", `Lead target reached with ${run.qualifiedCount} accepted sellers`);
+    } else if ((run.issues?.length ?? 0) > 0 && hasUsableResearch(run)) {
+      run.outcome = "partial";
+      run.stage = "exhausted";
+      addActivity(run, "complete", "Review finished with partial results");
+    } else if ((run.issues?.length ?? 0) > 0) {
+      run.error = primaryIssueMessage(run);
+      run.outcome = "failed";
+      run.stage = "failed";
+      addActivity(run, "complete", "Review failed before any seller could be evaluated");
+    } else {
+      run.outcome = run.researchLimitReached ? "candidate_budget_reached" : "completed";
+      run.stage = run.researchLimitReached ? "exhausted" : "export-ready";
+      addActivity(run, "complete", run.researchLimitReached ? "Candidate budget reached" : "Imported lead review complete");
+    }
   } catch (error) {
     if (isAbortError(error) || signal?.aborted) {
       run.outcome = "cancelled";
       run.stage = "cancelled";
     } else {
-      run.error = error instanceof Error ? error.message : "Run failed";
+      const issue = createRunIssue(error, run.stage, null);
+      run.issues = [...(run.issues ?? []), issue];
+      run.error = issue.message;
       run.outcome = "failed";
       run.stage = "failed";
+      addActivity(run, "issue", issue.message);
     }
   } finally {
     await storage.clearQueuedCandidates(run.id);
@@ -295,10 +373,139 @@ async function concurrentForEach<T>(items: T[], requestedConcurrency: number, wo
 }
 
 async function requestApi<T>(url: string, body: unknown, key: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
-  if (!response.ok) throw new Error("Research service request failed");
-  const payload = await response.json() as Record<string, unknown>;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (error) {
+    if (isAbortError(error) || signal?.aborted) throw error;
+    throw new ResearchServiceError(
+      "The network connection was interrupted. Check your connection, then retry.",
+      "network",
+      true,
+    );
+  }
+
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok) {
+    const providerMessage = payload && typeof payload.error === "string" ? payload.error : "";
+    throw researchResponseError(response.status, providerMessage);
+  }
+  if (!payload || !(key in payload)) {
+    throw new ResearchServiceError(
+      "The research provider returned an incomplete response. Retry this search.",
+      "provider",
+      true,
+    );
+  }
   return payload[key] as T;
+}
+
+class ResearchServiceError extends Error {
+  constructor(
+    message: string,
+    readonly kind: RunIssueKind,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "ResearchServiceError";
+  }
+}
+
+function researchResponseError(status: number, providerMessage: string): ResearchServiceError {
+  if (status === 429) {
+    return new ResearchServiceError(
+      "The research provider is rate-limiting requests. Wait a moment, then retry.",
+      "rate_limit",
+      true,
+    );
+  }
+  if (status === 503 || /not configured/i.test(providerMessage)) {
+    return new ResearchServiceError(
+      "Web research is not configured. Add YDC_API_KEY, then retry.",
+      "configuration",
+      false,
+    );
+  }
+  if (status === 400 || status === 422) {
+    return new ResearchServiceError(
+      "The research request could not be processed. Review the search brief, then retry.",
+      "validation",
+      true,
+    );
+  }
+  return new ResearchServiceError(
+    providerMessage || "The research provider could not complete the request. Retry the search.",
+    "provider",
+    status >= 500,
+  );
+}
+
+function createRunIssue(
+  error: unknown,
+  stage: RunStage,
+  candidate: DiscoveryCandidate | null,
+): RunIssue {
+  const serviceError = error instanceof ResearchServiceError ? error : null;
+  return {
+    id: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    stage,
+    scope: candidate ? "candidate" : "run",
+    kind: serviceError?.kind ?? "unknown",
+    message: serviceError?.message ?? (error instanceof Error ? error.message : "Research failed unexpectedly."),
+    retryable: serviceError?.retryable ?? true,
+    candidate: candidate ? structuredClone(candidate) : null,
+  };
+}
+
+function addActivity(run: RunRecord, kind: RunActivity["kind"], message: string): void {
+  const current = run.activity ?? [];
+  const previous = current.at(-1);
+  if (previous?.kind === kind && previous.message === message) return;
+  run.activity = [...current, {
+    id: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    kind,
+    message,
+  }].slice(-40);
+}
+
+function setCandidateActive(run: RunRecord, candidate: DiscoveryCandidate, active: boolean): void {
+  const current = run.activeCandidates ?? [];
+  run.activeCandidates = active
+    ? [...current.filter((item) => item.id !== candidate.id), {
+        id: candidate.id,
+        companyName: candidate.companyName,
+      }]
+    : current.filter((item) => item.id !== candidate.id);
+}
+
+function stageActivityMessage(stage: RunStage): string {
+  if (stage === "discovering") return "Looking for sellers";
+  if (stage === "verifying") return "Verifying seller locations";
+  if (stage === "researching") return "Researching seller evidence";
+  if (stage === "scoring" || stage === "qualifying") return "Scoring candidate evidence";
+  if (stage === "deduplicating") return "Removing duplicate sellers";
+  if (stage === "export-ready") return "Results are ready";
+  if (stage === "exhausted") return "Search finished below target";
+  if (stage === "cancelled") return "Search stopped";
+  if (stage === "failed") return "Search failed";
+  if (stage === "exporting") return "Preparing export";
+  if (stage === "completed") return "Search complete";
+  return "Search queued";
+}
+
+function hasUsableResearch(run: RunRecord): boolean {
+  return run.qualifiedCount > 0 || Object.keys(run.rejectedEvidence).length > 0;
+}
+
+function primaryIssueMessage(run: RunRecord): string {
+  return run.issues?.[0]?.message ?? "The search failed before any seller could be evaluated.";
 }
 
 function memory(

@@ -10,6 +10,11 @@ import type {
   RunStage,
   ScoreWeights,
 } from "@/domain/types";
+import {
+  activeCandidateLabel,
+  compactRunCounts,
+  runIssueCount,
+} from "@/domain/run-observability";
 
 type FeedbackExample = {
   companyName: string;
@@ -236,13 +241,21 @@ export function CriteriaAssistant({
       <div className="assistant-run-action">
         <span>
           <strong>
-            {isRunning ? runStageLabel(run?.stage) : `${preferences.targetLeads} strong leads`}
+            {isRunning
+              ? runStageLabel(run?.stage)
+              : run && isRecoverableRun(run)
+                ? run.outcome === "partial"
+                  ? "Partial results kept"
+                  : "Search failed"
+                : `${preferences.targetLeads} strong leads`}
           </strong>
           <small>
             {isRunning
               ? run
-                ? `${run.qualifiedCount}/${run.preferences.targetLeads} fit · ${run.researchedCount} researched`
+                ? activeCandidateLabel(run) || compactRunCounts(run)
                 : "Preparing the research run"
+              : run && isRecoverableRun(run)
+                ? terminalRunSummary(run)
               : `Up to ${preferences.maxCandidates} sites researched`}
           </small>
         </span>
@@ -260,7 +273,8 @@ export function CriteriaAssistant({
             }}
             type="button"
           >
-            Find leads <span aria-hidden="true">→</span>
+            {run && isRecoverableRun(run) ? "Retry search" : "Find leads"}{" "}
+            <span aria-hidden="true">→</span>
           </button>
         )}
       </div>
@@ -495,4 +509,16 @@ function runStageLabel(stage: RunStage | undefined): string {
   if (stage === "deduplicating") return "Removing duplicates";
   if (stage === "exporting") return "Preparing results";
   return "Finishing research";
+}
+
+function isRecoverableRun(run: RunRecord): boolean {
+  return Boolean(run.error || run.outcome === "failed" || run.outcome === "partial");
+}
+
+function terminalRunSummary(run: RunRecord): string {
+  const issueCount = runIssueCount(run);
+  if (run.outcome === "partial") {
+    return `${compactRunCounts(run)} · Results remain reviewable`;
+  }
+  return run.error || `${issueCount} ${issueCount === 1 ? "issue" : "issues"} blocked the search`;
 }

@@ -27,7 +27,7 @@ export function RunHistory({ runs }: { runs: RunRecord[] }) {
                 <th scope="col">Started</th>
                 <th scope="col">Stage</th>
                 <th scope="col">Accepted</th>
-                <th scope="col">Researched</th>
+                <th scope="col">Checked</th>
                 <th scope="col">Outcome</th>
                 <th scope="col">
                   <span className="sr-only">Export</span>
@@ -74,6 +74,7 @@ export function RunHistory({ runs }: { runs: RunRecord[] }) {
 
 function outcomeLabel(run: RunRecord): string {
   if (run.error || run.outcome === "failed") return "Failed";
+  if (run.outcome === "partial") return "Partial results · retry available";
   if (run.outcome === "cancelled") return "Cancelled · partial saved";
   if (run.outcome === "candidate_budget_reached") return "Candidate budget reached";
   if (run.outcome === "search_exhausted") return "Search exhausted";

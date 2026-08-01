@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_PREFERENCES } from "@/domain/defaults";
 import type { CandidateEvidence, DiscoveryCandidate, RunRecord } from "@/domain/types";
@@ -10,6 +10,8 @@ import {
   type ResearchGateway,
   type RunStorage,
 } from "./orchestrator";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const sourceUrl = "https://example.ca";
 const evidence = <T>(value: T) => ({ value, sourceUrl, confidence: 1 });
@@ -68,14 +70,96 @@ describe("runResearch", () => {
       if (item.id === "bad") throw new Error("provider response malformed");
       return researched(item);
     });
+    const storage = memoryStorage();
     const run = await runResearch(
       { ...DEFAULT_PREFERENCES, targetLeads: 3, maxCandidates: 4, maxConcurrentResearch: 2 },
       {},
-      { gateway: gateway(vi.fn(async () => [candidate("one"), candidate("bad"), candidate("two"), candidate("three")]), research), storage: memoryStorage(), id: () => "run-2" },
+      { gateway: gateway(vi.fn(async () => [candidate("one"), candidate("bad"), candidate("two"), candidate("three")]), research), storage, id: () => "run-2" },
     );
 
     expect(maximum).toBeLessThanOrEqual(2);
-    expect(run).toMatchObject({ stage: "export-ready", qualifiedCount: 3, researchedCount: 4, rejectedCount: 1 });
+    expect(run).toMatchObject({ stage: "export-ready", qualifiedCount: 3, researchedCount: 4, rejectedCount: 0 });
+    expect(run.issues).toEqual([
+      expect.objectContaining({
+        candidate: expect.objectContaining({ id: "bad" }),
+        message: "provider response malformed",
+        scope: "candidate",
+      }),
+    ]);
+    expect(storage.saveCandidateMemory).not.toHaveBeenCalledWith([
+      expect.objectContaining({ companyName: "Seller bad", outcome: "rejected" }),
+    ]);
+  });
+
+  it("distinguishes usable partial results from a failed search", async () => {
+    const run = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 3, maxCandidates: 2, maxConcurrentResearch: 1 },
+      {},
+      {
+        gateway: gateway(
+          vi.fn(async () => [candidate("good"), candidate("failed")]),
+          vi.fn(async (item) => {
+            if (item.id === "failed") throw new Error("provider timed out");
+            return researched(item);
+          }),
+        ),
+        storage: memoryStorage(),
+        id: () => "partial-run",
+      },
+    );
+
+    expect(run).toMatchObject({
+      stage: "exhausted",
+      outcome: "partial",
+      qualifiedCount: 1,
+      rejectedCount: 0,
+      error: null,
+    });
+    expect(run.issues).toHaveLength(1);
+  });
+
+  it("marks the run failed when no candidate can be evaluated", async () => {
+    const storage = memoryStorage();
+    const run = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 1, maxCandidates: 1 },
+      {},
+      {
+        gateway: gateway(
+          vi.fn(async () => [candidate("failed")]),
+          vi.fn(async () => { throw new Error("provider unavailable"); }),
+        ),
+        storage,
+        id: () => "failed-run",
+      },
+    );
+
+    expect(run).toMatchObject({
+      stage: "failed",
+      outcome: "failed",
+      qualifiedCount: 0,
+      rejectedCount: 0,
+      error: "provider unavailable",
+    });
+    expect(run.issues).toHaveLength(1);
+    expect(storage.saveCandidateMemory).not.toHaveBeenCalled();
+  });
+
+  it("preserves a specific rate-limit explanation from the research API", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      Response.json({ error: "Research provider rate limit exceeded" }, { status: 429 }),
+    ));
+
+    const run = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 1, maxCandidates: 1 },
+      {},
+      { storage: memoryStorage(), id: () => "limited-run" },
+    );
+
+    expect(run).toMatchObject({ stage: "failed", outcome: "failed" });
+    expect(run.error).toMatch(/rate-limiting requests/i);
+    expect(run.issues).toEqual([
+      expect.objectContaining({ kind: "rate_limit", retryable: true, scope: "run" }),
+    ]);
   });
 
   it("deduplicates candidates from the current and prior runs and stops at the research limit", async () => {
@@ -270,5 +354,45 @@ describe("reviewImportedLeads", () => {
       researchedCount: 1,
       researchLimitReached: true,
     });
+  });
+
+  it("retries failed sellers while preserving prior partial results", async () => {
+    const firstRun = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 2, maxCandidates: 2 },
+      {},
+      {
+        gateway: gateway(
+          vi.fn(async () => [candidate("good"), candidate("failed")]),
+          vi.fn(async (item) => {
+            if (item.id === "failed") throw new Error("temporary provider failure");
+            return researched(item);
+          }),
+        ),
+        storage: memoryStorage(),
+        id: () => "partial-before-retry",
+      },
+    );
+    const failedCandidate = firstRun.issues?.[0]?.candidate;
+    expect(failedCandidate).toBeTruthy();
+
+    const retried = await reviewImportedLeads(
+      firstRun.preferences,
+      [failedCandidate!],
+      {},
+      {
+        gateway: gateway(vi.fn(), async (item) => researched(item)),
+        seedRun: firstRun,
+        storage: memoryStorage(),
+        id: () => "retry-run",
+      },
+    );
+
+    expect(retried).toMatchObject({
+      stage: "export-ready",
+      outcome: "target_reached",
+      qualifiedCount: 2,
+    });
+    expect(retried.issues).toEqual([]);
+    expect(retried.leads).toHaveLength(2);
   });
 });

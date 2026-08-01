@@ -395,4 +395,43 @@ describe("reviewImportedLeads", () => {
     expect(retried.issues).toEqual([]);
     expect(retried.leads).toHaveLength(2);
   });
+
+  it("marks a retry as failed when the provider evaluates no sellers, while preserving saved leads", async () => {
+    const firstRun = await runResearch(
+      { ...DEFAULT_PREFERENCES, targetLeads: 2, maxCandidates: 2 },
+      {},
+      {
+        gateway: gateway(
+          vi.fn(async () => [candidate("good"), candidate("failed")]),
+          vi.fn(async (item) => {
+            if (item.id === "failed") throw new Error("provider unavailable");
+            return researched(item);
+          }),
+        ),
+        storage: memoryStorage(),
+        id: () => "partial-before-failed-retry",
+      },
+    );
+    const failedCandidate = firstRun.issues?.[0]?.candidate;
+
+    const retried = await reviewImportedLeads(
+      firstRun.preferences,
+      [failedCandidate!],
+      {},
+      {
+        gateway: gateway(vi.fn(), async () => { throw new Error("You.com unavailable after retries"); }),
+        seedRun: firstRun,
+        storage: memoryStorage(),
+        id: () => "failed-retry",
+      },
+    );
+
+    expect(retried).toMatchObject({
+      stage: "failed",
+      outcome: "failed",
+      qualifiedCount: 1,
+      error: "You.com unavailable after retries",
+    });
+    expect(retried.leads).toHaveLength(1);
+  });
 });

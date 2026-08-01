@@ -204,8 +204,9 @@ describe("LeadReviewWorkspace", () => {
 
     expect(screen.getAllByText("Foxy Originals").length).toBeGreaterThan(0);
     expect(screen.getByText("Partial results kept")).toBeVisible();
+    expect(screen.getAllByText(/research provider could not complete/i)[0]).toBeVisible();
     fireEvent.click(screen.getByText(/1 issue · view activity/i));
-    expect(screen.getByText(/research provider could not complete/i)).toBeVisible();
+    expect(screen.getAllByText(/research provider could not complete/i)).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry failed sellers" }));
     fireEvent.click(screen.getByRole("button", { name: "Retry search" }));

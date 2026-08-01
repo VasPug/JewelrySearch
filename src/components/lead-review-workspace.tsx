@@ -260,13 +260,17 @@ function RunStatusBanner({
   const activeCandidate = activeCandidateLabel(run);
   const failedCandidates = retryableCandidates(run);
   const canRetry = !isRunning && (run.error || run.outcome === "failed" || run.outcome === "partial");
+  const latestIssue = issues.at(-1);
+  const statusSummary = isRunning
+    ? activeCandidate || compactRunCounts(run)
+    : run.error || (run.outcome === "partial" && latestIssue?.message) || compactRunCounts(run);
 
   return (
     <div className={`lead-run-banner ${tone}`} role="status">
       <div className="lead-run-banner-summary">
         <span>
           <strong>{runStatusLabel(run, isRunning)}</strong>
-          <small>{activeCandidate || compactRunCounts(run)}</small>
+          <small>{statusSummary}</small>
         </span>
         <div className="lead-run-banner-actions">
           {isRunning && onCancel ? (

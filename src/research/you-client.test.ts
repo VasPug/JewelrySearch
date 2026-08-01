@@ -89,13 +89,39 @@ describe("YouClient", () => {
     expect(sleep).toHaveBeenCalledTimes(2);
   });
 
+  it("retries transient network failures instead of failing the first request", async () => {
+    const fetch = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(json({ results: { web: [] } }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const client = new YouClient({ apiKey: "test-key", fetch, sleep });
+
+    await expect(client.discoverCandidates("Canadian jewelry", 10)).resolves.toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads official provider detail messages", async () => {
+    const fetch = vi.fn().mockResolvedValue(json({ detail: "Insufficient credits" }, 402));
+    const client = new YouClient({ apiKey: "test-key", fetch, sleep: vi.fn() });
+
+    await expect(client.discoverCandidates("Canadian jewelry", 10)).rejects.toMatchObject({
+      message: "Insufficient credits",
+      status: 402,
+    });
+  });
+
   it("aborts an overdue request", async () => {
     const fetch = vi.fn((_url: string, request?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       (request?.signal as AbortSignal).addEventListener("abort", () => reject(new DOMException("Timed out", "AbortError")));
     }));
-    const client = new YouClient({ apiKey: "test-key", fetch, timeoutMs: 1 });
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const client = new YouClient({ apiKey: "test-key", fetch, timeoutMs: 1, sleep });
 
-    await expect(client.discoverCandidates("Canadian jewelry", 10)).rejects.toThrow("timed out");
+    await expect(client.discoverCandidates("Canadian jewelry", 10)).rejects.toThrow("timed out after three attempts");
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
   });
 
   it("propagates user cancellation to the provider request", async () => {

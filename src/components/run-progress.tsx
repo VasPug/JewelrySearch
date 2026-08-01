@@ -182,9 +182,10 @@ function runNote(run: RunRecord): { title: string; message: string } {
   if (run.error) return { title: "Run stopped:", message: run.error };
   if (run.outcome === "partial") {
     const count = runIssueCount(run);
+    const latestIssue = runIssues(run).at(-1)?.message;
     return {
       title: "Partial results kept:",
-      message: `${run.qualifiedCount} accepted ${run.qualifiedCount === 1 ? "lead is" : "leads are"} available. ${count} research ${count === 1 ? "request could" : "requests could"} not be completed.`,
+      message: `${run.qualifiedCount} accepted ${run.qualifiedCount === 1 ? "lead is" : "leads are"} available. ${count} research ${count === 1 ? "request could" : "requests could"} not be completed.${latestIssue ? ` ${latestIssue}` : ""}`,
     };
   }
   if (run.outcome === "cancelled") {
@@ -213,6 +214,9 @@ function progressHeading(run: RunRecord): string {
 function issueLabel(kind: RunIssue["kind"]): string {
   if (kind === "rate_limit") return "Provider rate limit";
   if (kind === "configuration") return "Configuration";
+  if (kind === "authentication") return "Provider authentication";
+  if (kind === "quota") return "Provider credits";
+  if (kind === "timeout") return "Provider timeout";
   if (kind === "network") return "Network connection";
   if (kind === "validation") return "Search brief";
   if (kind === "provider") return "Research provider";

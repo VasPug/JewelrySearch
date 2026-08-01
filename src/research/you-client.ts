@@ -6,7 +6,7 @@ import { RESEARCH_OUTPUT_SCHEMA, researchOutputSchema, toCandidateEvidence } fro
 const SEARCH_URL = "https://api.you.com/v1/search";
 const RESEARCH_URL = "https://api.you.com/v1/research";
 const MAX_ATTEMPTS = 3;
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 90_000;
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -98,6 +98,7 @@ export class YouClient {
       const cancel = () => controller.abort(externalSignal?.reason);
       externalSignal?.addEventListener("abort", cancel, { once: true });
       const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+      let retryDelayMs = 250 * 2 ** (attempt - 1);
       try {
         const response = await this.fetchFn(url, {
           ...init,
@@ -111,16 +112,23 @@ export class YouClient {
         if (!isRetryableStatus(response.status) || attempt === MAX_ATTEMPTS) {
           throw new YouApiError(message, response.status);
         }
+        retryDelayMs = retryAfterMilliseconds(response.headers) ?? retryDelayMs;
       } catch (error) {
         if (externalSignal?.aborted) throw new DOMException("Run cancelled", "AbortError");
-        if (controller.signal.aborted) throw new Error("You.com request timed out");
-        if (error instanceof YouApiError || attempt === MAX_ATTEMPTS) throw error;
-        throw error;
+        if (controller.signal.aborted) {
+          if (attempt === MAX_ATTEMPTS) {
+            throw new YouApiError("You.com research timed out after three attempts", 504);
+          }
+        } else if (error instanceof YouApiError) {
+          if (!isRetryableStatus(error.status) || attempt === MAX_ATTEMPTS) throw error;
+        } else if (attempt === MAX_ATTEMPTS) {
+          throw new YouApiError("You.com could not be reached after three attempts", 502);
+        }
       } finally {
         clearTimeout(timeout);
         externalSignal?.removeEventListener("abort", cancel);
       }
-      await this.sleep(100 * attempt);
+      await this.sleep(retryDelayMs);
     }
     throw new Error("You.com request exhausted retries");
   }
@@ -133,7 +141,18 @@ function readWebResults(payload: unknown): Array<{ title?: unknown; url?: unknow
 
 function responseMessage(payload: unknown, status: number): string {
   if (isRecord(payload) && typeof payload.message === "string") return payload.message;
+  if (isRecord(payload) && typeof payload.detail === "string") return payload.detail;
+  if (isRecord(payload) && typeof payload.error === "string") return payload.error;
   return `You.com request failed with HTTP ${status}`;
+}
+
+function retryAfterMilliseconds(headers: Headers): number | null {
+  const value = headers.get("retry-after");
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, date - Date.now());
 }
 
 function isRetryableStatus(status: number): boolean {

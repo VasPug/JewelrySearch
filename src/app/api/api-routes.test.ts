@@ -61,7 +61,7 @@ describe("research API routes", () => {
     expect(await limited.text()).not.toContain("private-key");
   });
 
-  it("returns researched evidence and maps permanent provider errors to 502", async () => {
+  it("returns researched evidence and preserves actionable provider error categories", async () => {
     vi.stubEnv("YDC_API_KEY", "test-key");
     researchCandidate.mockResolvedValue({ id: "north", companyName: { value: "North Star" } });
     const successful = await research(request("/api/research", {
@@ -80,6 +80,11 @@ describe("research API routes", () => {
       "Review this uploaded lead",
       expect.any(AbortSignal),
     );
-    expect(failed.status).toBe(502);
+    expect(failed.status).toBe(422);
+    expect(await failed.json()).toEqual({
+      error: "You.com rejected the research request. The request parameters or evidence schema need attention.",
+      code: "invalid_provider_request",
+      retryable: false,
+    });
   });
 });

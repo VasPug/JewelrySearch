@@ -183,6 +183,9 @@ export type RunOutcome =
 export type RunIssueKind =
   | "rate_limit"
   | "configuration"
+  | "authentication"
+  | "quota"
+  | "timeout"
   | "network"
   | "provider"
   | "validation"

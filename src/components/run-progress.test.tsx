@@ -98,10 +98,11 @@ describe("RunProgress", () => {
     expect(screen.getByRole("heading", { name: "Partial results ready" })).toBeVisible();
     expect(screen.getByText("1", { selector: ".counter.is-danger strong" })).toBeVisible();
     expect(screen.getByText(/partial results kept/i)).toBeVisible();
+    expect(screen.getAllByText(/rate-limiting requests/i)[0]).toBeVisible();
 
     fireEvent.click(screen.getByText(/1 issue/i));
     expect(screen.getByText("Silver House")).toBeVisible();
-    expect(screen.getByText(/rate-limiting requests/i)).toBeVisible();
+    expect(screen.getAllByText(/rate-limiting requests/i)).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry failed sellers" }));
     fireEvent.click(screen.getByRole("button", { name: "Retry search" }));

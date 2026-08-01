@@ -81,6 +81,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
     outcome: null, discoveredCount: 0, researchedCount: 0, qualifiedCount: 0, rejectedCount: 0, deduplicatedCount: 0, researchLimitReached: false, leads: [], rejectionReasons: {}, rejectedEvidence: {}, error: null,
     issues: [], activity: [], activeCandidates: [],
   };
+  let evaluatedThisAttempt = 0;
   let persistence = Promise.resolve();
   const persist = () => {
     const snapshot = structuredClone(run);
@@ -154,6 +155,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
           const evidence = await gateway.researchCandidate(item, preferences, instructions, signal);
           throwIfAborted(signal);
           run.researchedCount += 1;
+          evaluatedThisAttempt += 1;
           await stage("scoring");
           const result = scoreCandidate(evidence, preferences);
           known.push(evidence);
@@ -195,7 +197,7 @@ export async function runResearch(preferences: RunPreferences, callbacks: RunCal
       run.outcome = "target_reached";
       addActivity(run, "complete", `Lead target reached with ${run.qualifiedCount} accepted sellers`);
       await stage("export-ready");
-    } else if ((run.issues?.length ?? 0) > 0 && hasUsableResearch(run)) {
+    } else if ((run.issues?.length ?? 0) > 0 && evaluatedThisAttempt > 0) {
       run.outcome = "partial";
       addActivity(run, "complete", "Search finished with partial results");
       await stage("exhausted");
@@ -266,6 +268,7 @@ export async function reviewImportedLeads(
     activity: structuredClone(seedRun?.activity ?? []),
     activeCandidates: [],
   };
+  let evaluatedThisAttempt = 0;
   addActivity(
     run,
     "stage",
@@ -292,6 +295,7 @@ export async function reviewImportedLeads(
         throwIfAborted(signal);
         const result = scoreCandidate(evidence, preferences);
         run.researchedCount += 1;
+        evaluatedThisAttempt += 1;
         if (result.accepted) {
           const lead = toQualifiedLead(evidence, result.confidence, result.breakdown);
           run.leads.push(lead);
@@ -324,7 +328,7 @@ export async function reviewImportedLeads(
       run.outcome = "target_reached";
       run.stage = "export-ready";
       addActivity(run, "complete", `Lead target reached with ${run.qualifiedCount} accepted sellers`);
-    } else if ((run.issues?.length ?? 0) > 0 && hasUsableResearch(run)) {
+    } else if ((run.issues?.length ?? 0) > 0 && evaluatedThisAttempt > 0) {
       run.outcome = "partial";
       run.stage = "exhausted";
       addActivity(run, "complete", "Review finished with partial results");
@@ -431,11 +435,32 @@ function researchResponseError(status: number, providerMessage: string): Researc
       false,
     );
   }
+  if (status === 401 || status === 403) {
+    return new ResearchServiceError(
+      providerMessage || "You.com authentication failed. Verify YDC_API_KEY and its Research API permissions.",
+      "authentication",
+      false,
+    );
+  }
+  if (status === 402) {
+    return new ResearchServiceError(
+      providerMessage || "The You.com account has insufficient credits. Add credits, then retry.",
+      "quota",
+      false,
+    );
+  }
+  if (status === 504 || /timed out/i.test(providerMessage)) {
+    return new ResearchServiceError(
+      providerMessage || "You.com research timed out. Retry this seller.",
+      "timeout",
+      true,
+    );
+  }
   if (status === 400 || status === 422) {
     return new ResearchServiceError(
-      "The research request could not be processed. Review the search brief, then retry.",
+      providerMessage || "You.com rejected the research request. The request parameters or evidence schema need attention.",
       "validation",
-      true,
+      false,
     );
   }
   return new ResearchServiceError(
@@ -500,12 +525,8 @@ function stageActivityMessage(stage: RunStage): string {
   return "Search queued";
 }
 
-function hasUsableResearch(run: RunRecord): boolean {
-  return run.qualifiedCount > 0 || Object.keys(run.rejectedEvidence).length > 0;
-}
-
 function primaryIssueMessage(run: RunRecord): string {
-  return run.issues?.[0]?.message ?? "The search failed before any seller could be evaluated.";
+  return run.issues?.at(-1)?.message ?? "The search failed before any seller could be evaluated.";
 }
 
 function memory(
